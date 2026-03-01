@@ -193,8 +193,7 @@ The server includes a web-based management UI at `/ui/`:
 - **Feed Management** - Refresh, delete, copy feed URLs, set network override
 - **Patterns** - View and manage cross-episode ad patterns with sponsor names
 - **History** - View processing history with stats, filtering, and export
-- **Settings** - Configure ad detection prompts and Claude model
-- **System Status** - View statistics, LLM token usage and cost, and run cleanup
+- **Settings** - Configure ad detection prompts, Claude model, view system statistics, LLM token usage and cost, and run cleanup
 - **Real-Time Status Bar** - Shows current processing progress across all pages
 
 ### Ad Editor (Mobile-First)

@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.25] - 2026-03-01
+
+### Fixed
+- **README accuracy**: Merged "System Status" bullet into "Settings" (it is a section within Settings, not a standalone page)
+- **Frontend README**: Updated outdated component reference from `TranscriptEditor.tsx` to `AdEditor.tsx`
+- **OpenAPI spec version**: Updated from 1.0.0 to match actual app version
+- **OpenAPI corrections endpoint**: Fixed path from `/feeds/{slug}/episodes/{episodeId}/corrections` to `/episodes/{slug}/{episodeId}/corrections` to match api.py
+- **OpenAPI reprocess endpoint**: Fixed path from `/feeds/{slug}/episodes/{episodeId}/reprocess` to `/episodes/{slug}/{episodeId}/reprocess` to match preferred endpoint with mode support
+
 ## [1.0.24] - 2026-03-01
 
 ### Changed
