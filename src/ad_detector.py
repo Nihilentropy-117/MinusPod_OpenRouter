@@ -1277,6 +1277,12 @@ class AdDetector:
                     ads = [s for s in parsed['segments']
                            if isinstance(s, dict) and s.get('type') == 'advertisement']
                     return ads, "json_object_segments_key"
+                # Single ad object (e.g. Ollama/qwen3 returns bare dict instead of array)
+                _start_keys = ('start', 'start_time', 'start_timestamp', 'ad_start_timestamp', 'start_time_seconds')
+                _end_keys = ('end', 'end_time', 'end_timestamp', 'ad_end_timestamp', 'end_time_seconds')
+                if any(k in parsed for k in _start_keys) and any(k in parsed for k in _end_keys):
+                    logger.info(f"[{slug}:{episode_id}] Single ad object detected, wrapping in array")
+                    return [parsed], "json_object_single_ad"
                 return [], "json_object_no_ads"
         except json.JSONDecodeError:
             pass
@@ -1727,6 +1733,9 @@ class AdDetector:
                 # Parse response (LLMResponse.content is already extracted text)
                 response_text = response.content
                 all_raw_responses.append(f"=== Window {i+1} ({window_start/60:.1f}-{window_end/60:.1f}min) ===\n{response_text}")
+
+                preview = response_text[:500] + ('...' if len(response_text) > 500 else '')
+                logger.info(f"[{slug}:{episode_id}] Window {i+1} LLM response ({len(response_text)} chars): {preview}")
 
                 # Parse ads from response
                 window_ads = self._parse_ads_from_response(response_text, slug, episode_id)
@@ -2466,6 +2475,9 @@ class AdDetector:
                 all_raw_responses.append(
                     f"=== Window {i+1} ({window_start/60:.1f}-{window_end/60:.1f}min) ===\n{response_text}"
                 )
+
+                preview = response_text[:500] + ('...' if len(response_text) > 500 else '')
+                logger.info(f"[{slug}:{episode_id}] Verification Window {i+1} LLM response ({len(response_text)} chars): {preview}")
 
                 window_ads = self._parse_ads_from_response(response_text, slug, episode_id)
 

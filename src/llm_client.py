@@ -286,6 +286,13 @@ class OpenAICompatibleClient(LLMClient):
 
         response = self._client.chat.completions.create(**kwargs)
 
+        # Log reasoning/chain-of-thought if present (e.g. qwen3 think mode)
+        if response.choices:
+            msg = response.choices[0].message
+            reasoning = getattr(msg, 'reasoning', None) or getattr(msg, 'reasoning_content', None)
+            if reasoning:
+                logger.debug(f"LLM reasoning field present ({len(str(reasoning))} chars)")
+
         content = response.choices[0].message.content if response.choices else ""
 
         llm_response = LLMResponse(

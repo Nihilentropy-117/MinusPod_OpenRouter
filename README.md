@@ -396,24 +396,43 @@ The `OPENAI_API_KEY` variable is not required for Ollama. Token counts will stil
 
 ### Recommended Models
 
-Choose based on your available VRAM. **Stay within your VRAM limit** -- a model that fits entirely on GPU will dramatically outperform a larger model that spills into system RAM (expect a 3-10x slowdown when offloading).
+Models are loaded sequentially, not concurrently -- VRAM requirements are not additive between passes.
 
-Use `Q4_K_M` quantization as your default. Use `Q5_K_M` if you have headroom -- it offers better output quality for a modest increase in VRAM.
+#### Pass 1 -- First Pass Detection
 
-| VRAM | Model | Quantization | Size on Disk | Notes |
-|------|-------|-------------|-------------|-------|
-| 4-6GB | `qwen3:4b` | Q4_K_M | 2.5GB | Minimum viable. JSON reliability is marginal -- expect occasional failures. |
-| 4-6GB | `phi4-mini` | Q4_K_M | ~3GB | Efficient alternative at this tier. |
-| 8GB | `qwen3:8b` | Q4_K_M | 5.2GB | **Recommended entry-level.** Strong instruction following for its size. |
-| 12GB | `qwen3:14b` | Q4_K_M | 9.3GB | Best quality-to-VRAM ratio at this tier. |
-| 12GB | `ministral-3:14b` | Q4_K_M | 13GB | Fast inference, good JSON reliability. |
-| 16GB | `qwen3:14b` | Q5_K_M | ~11GB | **Overall recommended.** Higher quality quant fits cleanly. |
-| 16GB | `qwen3:30b` | Q4_K_M | 19GB | MoE -- only 3B active params, faster than size suggests. |
-| 24GB | `qwen3.5:27b` | Q4_K_M | 17GB | Latest generation. 256K context, multimodal. |
-| 24GB | `qwen3.5:35b` | Q4_K_M | 24GB | Best quality under 40GB. 256K context. |
-| 40GB+ | `qwen3.5:122b` | Q4_K_M | 81GB | Closest open-weights match to Claude Sonnet quality. |
+Hardest task. Contextual reasoning, host-read ads, new sponsors. Use your best model here.
 
-> **Recommendation across all tiers:** The Qwen3 family currently offers the most consistent JSON output and instruction following of any open-weights model family. It is the safest choice for MinusPod's structured detection pipeline.
+| VRAM | Model | Quantization | Notes |
+|------|-------|--------------|-------|
+| 8GB | `qwen3:8b` | Q4_K_M | Entry level. Handles standard sponsor reads well. |
+| 12GB | `qwen3:14b` | Q4_K_M | Best quality-to-VRAM ratio. **Recommended.** |
+| 16GB | `qwen3:14b` | Q5_K_M | Higher quality quant; use if you have headroom. |
+| 24GB | `qwen3.5:27b` | Q4_K_M | Strong contextual reasoning. 256K context. |
+| 24GB | `qwen3.5:35b` | Q4_K_M | Best quality under 40GB. 256K context. |
+| 40GB+ | `qwen3.5:122b` | Q4_K_M | Closest open-weights match to Claude Sonnet quality. |
+
+#### Verification Pass
+
+Easier task. Looks for remnants in already-cut audio. Speed matters more than raw accuracy.
+
+| VRAM | Model | Quantization | Notes |
+|------|-------|--------------|-------|
+| 8GB | `qwen3:4b` | Q8_0 | Fast, good JSON compliance. Verification prompt is simpler. |
+| 12GB | `qwen3:8b` | Q5_K_M | Strong JSON compliance, faster than 14B. |
+| 16GB | `mistral-nemo:12b` | Q4_K_M | Excellent JSON reliability, fast inference. |
+| 24GB | `qwen3:14b` | Q5_K_M | Overkill for verification but uses available VRAM productively. |
+
+#### Chapters
+
+Simplest task. Summarization only -- no structured detection. Minimize cost and latency.
+
+| VRAM | Model | Quantization | Notes |
+|------|-------|--------------|-------|
+| Any | `qwen3:4b` | Q4_K_M | Sufficient for summarization. Fast. |
+| Any | `phi4-mini` | Q4_K_M | Lean alternative, strong instruction following. |
+| Any | `llama3.2:3b` | Q4_K_M | Smallest viable option if VRAM is tight. |
+
+> **Example split for 16GB VRAM:** Pass 1 -> `qwen3:14b Q5_K_M` / Verification -> `qwen3:8b Q5_K_M` / Chapters -> `qwen3:4b Q4_K_M`
 
 > **Avoid models under 7B for production use.** JSON reliability degrades significantly at smaller sizes, which causes silent detection failures rather than recoverable errors (see below).
 

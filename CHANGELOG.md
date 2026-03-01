@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.30] - 2026-03-01
+
+### Fixed
+- **Ollama single-object response parsing**: qwen3 (and potentially other models) return a bare JSON object `{...}` instead of an array `[{...}]` when detecting a single ad. The parser now detects objects with start/end timestamp keys and wraps them in an array, preventing silent ad drops. Anthropic code path is unaffected (always returns arrays).
+
+### Added
+- **LLM response logging**: Raw LLM response text is now logged at INFO level (first 500 chars) for both detection and verification windows. Enables debugging unexpected model output via Grafana without needing to query the database.
+- **Reasoning field logging**: `OpenAICompatibleClient` now logs the presence and size of reasoning/chain-of-thought fields (e.g. qwen3 think mode) at DEBUG level.
+
+### Changed
+- **README model tables**: Replaced single flat model recommendation table with per-pass tables (Pass 1 / Verification / Chapters) reflecting that different passes have different model requirements.
+
 ## [1.0.29] - 2026-03-01
 
 ### Fixed
