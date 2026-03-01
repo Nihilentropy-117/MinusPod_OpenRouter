@@ -38,6 +38,7 @@ function Settings() {
   const [audioBitrate, setAudioBitrate] = useState('128k');
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(true);
   const [chaptersEnabled, setChaptersEnabled] = useState(true);
+  const [chaptersModel, setChaptersModel] = useState('');
   const [minCutConfidence, setMinCutConfidence] = useState(0.80);
   const [hasChanges, setHasChanges] = useState(false);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
@@ -88,6 +89,7 @@ function Settings() {
       setAudioBitrate(settings.audioBitrate?.value || '128k');
       setVttTranscriptsEnabled(settings.vttTranscriptsEnabled?.value ?? true);
       setChaptersEnabled(settings.chaptersEnabled?.value ?? true);
+      setChaptersModel(settings.chaptersModel?.value || '');
       setMinCutConfidence(settings.minCutConfidence?.value ?? 0.80);
     }
   }, [settings]);
@@ -104,10 +106,11 @@ function Settings() {
         audioBitrate !== (settings.audioBitrate?.value || '128k') ||
         vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? true) ||
         chaptersEnabled !== (settings.chaptersEnabled?.value ?? true) ||
+        chaptersModel !== (settings.chaptersModel?.value || '') ||
         minCutConfidence !== (settings.minCutConfidence?.value ?? 0.80);
       setHasChanges(changed);
     }
-  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, minCutConfidence, settings]);
+  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -121,6 +124,7 @@ function Settings() {
         audioBitrate,
         vttTranscriptsEnabled,
         chaptersEnabled,
+        chaptersModel,
         minCutConfidence,
       }),
     onSuccess: () => {
@@ -513,7 +517,7 @@ function Settings() {
       <div className="bg-card rounded-lg border border-border p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Audio Analysis</h2>
         <p className="text-sm text-muted-foreground">
-          Volume and transition analysis runs automatically on every episode. Detects volume anomalies and abrupt loudness transitions that indicate dynamically inserted ads. Audio signals are included as context in Claude's detection prompt.
+          Volume and transition analysis runs automatically on every episode. Detects volume anomalies and abrupt loudness transitions that indicate dynamically inserted ads. Audio signals are included as context in the AI detection prompt.
         </p>
       </div>
 
@@ -570,7 +574,7 @@ function Settings() {
       </div>
 
       <div className="bg-card rounded-lg border border-border p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Claude Model</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">AI Model</h2>
         <div>
           <label htmlFor="model" className="block text-sm font-medium text-foreground mb-2">
             Model for Ad Detection
@@ -588,7 +592,7 @@ function Settings() {
             ))}
           </select>
           <p className="mt-1 text-sm text-muted-foreground">
-            Select which Claude model to use for analyzing transcripts
+            Select which AI model to use for analyzing transcripts
           </p>
         </div>
       </div>
@@ -664,6 +668,29 @@ function Settings() {
               Create JSON chapters from ad boundaries and description timestamps
             </p>
           </div>
+
+          {chaptersEnabled && (
+            <div className="ml-14">
+              <label htmlFor="chaptersModel" className="block text-sm font-medium text-foreground mb-2">
+                Chapters Model
+              </label>
+              <select
+                id="chaptersModel"
+                value={chaptersModel}
+                onChange={(e) => setChaptersModel(e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {models?.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {formatModelLabel(model)}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Model for chapter title generation and topic detection (smaller/cheaper models work well)
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -682,7 +709,7 @@ function Settings() {
             className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
           />
           <p className="mt-1 text-sm text-muted-foreground">
-            Instructions sent to Claude for the initial ad detection pass
+            Instructions sent to the AI model for the initial ad detection pass
           </p>
         </div>
 

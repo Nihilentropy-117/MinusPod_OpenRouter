@@ -286,6 +286,13 @@ class OpenAICompatibleClient(LLMClient):
 
         response = self._client.chat.completions.create(**kwargs)
 
+        # Log reasoning/chain-of-thought if present (e.g. qwen3 think mode)
+        if response.choices:
+            msg = response.choices[0].message
+            reasoning = getattr(msg, 'reasoning', None) or getattr(msg, 'reasoning_content', None)
+            if reasoning:
+                logger.debug(f"LLM reasoning field present ({len(str(reasoning))} chars)")
+
         content = response.choices[0].message.content if response.choices else ""
 
         llm_response = LLMResponse(
@@ -301,29 +308,35 @@ class OpenAICompatibleClient(LLMClient):
         return llm_response
 
     def list_models(self) -> List[LLMModel]:
-        """List models from the OpenAI-compatible API."""
+        """List models from the OpenAI-compatible API.
+
+        Returns all models reported by the endpoint without filtering.
+        This ensures Ollama models (qwen3, mistral, phi4-mini, etc.) are
+        visible alongside Claude/GPT models from other providers.
+        """
         self._ensure_client()
 
         try:
             response = self._client.models.list()
             models = []
             for model in response.data:
-                # Filter to Claude models if using Claude Code wrapper
                 model_id = model.id if hasattr(model, 'id') else str(model)
-                if 'claude' in model_id.lower() or 'gpt' in model_id.lower() or 'llama' in model_id.lower():
-                    models.append(LLMModel(
-                        id=model_id,
-                        name=model_id,
-                        created=str(model.created) if hasattr(model, 'created') else None
-                    ))
+                models.append(LLMModel(
+                    id=model_id,
+                    name=model_id,
+                    created=str(model.created) if hasattr(model, 'created') else None
+                ))
             return models if models else self._get_fallback_models()
         except Exception as e:
             logger.warning(f"Could not fetch models from OpenAI-compatible API: {e}")
+            native = self._try_ollama_native_list()
+            if native:
+                return native
             return self._get_fallback_models()
 
     def _get_fallback_models(self) -> List[LLMModel]:
-        """Return fallback models."""
-        return list(FALLBACK_MODELS)
+        """Return the configured default model as fallback."""
+        return [LLMModel(id=self.default_model, name=self.default_model)]
 
     def get_provider_name(self) -> str:
         return f"openai-compatible ({self.base_url})"
@@ -349,8 +362,73 @@ class OpenAICompatibleClient(LLMClient):
             logger.info(f"LLM endpoint verified: {self.base_url} ({len(models)} models available)")
             return True
         except Exception as e:
+            logger.warning(f"OpenAI-compatible model list failed: {self.base_url} - {e}")
+            native = self._try_ollama_native_list()
+            if native:
+                logger.info(f"LLM endpoint verified via Ollama native API ({len(native)} models)")
+                return True
             logger.error(f"LLM endpoint verification failed: {self.base_url} - {e}")
             return False
+
+    def _try_ollama_native_list(self) -> List[LLMModel]:
+        """Try Ollama's native /api/tags endpoint as a fallback for model listing.
+
+        Strips /v1 from self.base_url to derive the Ollama root, then queries
+        GET {root}/api/tags. Returns a list of LLMModel on success, empty list
+        on any failure.
+        """
+        root = self.base_url.rstrip('/')
+        if root.endswith('/v1'):
+            root = root[:-3]
+
+        url = f"{root}/api/tags"
+        try:
+            import httpx
+            resp = httpx.get(url, timeout=10.0)
+            resp.raise_for_status()
+            data = resp.json()
+            models = []
+            for entry in data.get('models', []):
+                name = entry.get('name', '')
+                if name:
+                    models.append(LLMModel(id=name, name=name))
+            if models:
+                logger.info(f"Ollama native /api/tags returned {len(models)} models")
+            return models
+        except Exception as e:
+            logger.debug(f"Ollama native /api/tags fallback failed: {e}")
+            return []
+
+
+# =============================================================================
+# Provider-aware timeout / retry helpers
+# =============================================================================
+
+def get_llm_timeout() -> float:
+    """Return the LLM request timeout based on the configured provider.
+
+    Non-Anthropic providers get a longer timeout since inference may be
+    on-device or routed through a wrapper and significantly slower than
+    the direct Anthropic API.
+    """
+    from config import LLM_TIMEOUT_DEFAULT, LLM_TIMEOUT_LOCAL
+    provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
+    if provider != 'anthropic':
+        return LLM_TIMEOUT_LOCAL
+    return LLM_TIMEOUT_DEFAULT
+
+
+def get_llm_max_retries() -> int:
+    """Return the max retry count based on the configured provider.
+
+    Non-Anthropic providers use fewer retries since each attempt may be
+    slower than the direct Anthropic API.
+    """
+    from config import LLM_RETRY_MAX_RETRIES, LLM_RETRY_MAX_RETRIES_LOCAL
+    provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
+    if provider != 'anthropic':
+        return LLM_RETRY_MAX_RETRIES_LOCAL
+    return LLM_RETRY_MAX_RETRIES
 
 
 # =============================================================================
@@ -456,7 +534,11 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
     if provider == 'anthropic':
         _cached_client = AnthropicClient()
     elif provider in ('openai-compatible', 'openai', 'wrapper', 'ollama'):
-        _cached_client = OpenAICompatibleClient()
+        base_url = os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
+        if provider == 'ollama' and not base_url.rstrip('/').endswith('/v1'):
+            base_url = base_url.rstrip('/') + '/v1'
+            logger.info(f"Ollama provider: normalized base_url to {base_url}")
+        _cached_client = OpenAICompatibleClient(base_url=base_url)
     else:
         logger.warning(f"Unknown LLM_PROVIDER '{provider}', defaulting to anthropic")
         _cached_client = AnthropicClient()
@@ -470,35 +552,34 @@ def get_api_key() -> Optional[str]:
     """Get the API key for the current provider.
 
     Returns:
-        API key string or None if not set
+        API key string or None if not set.
+        Non-anthropic providers default to "not-needed" since local
+        endpoints like Ollama don't require authentication.
     """
     provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
 
     if provider == 'anthropic':
         return os.environ.get('ANTHROPIC_API_KEY')
     else:
-        return os.environ.get('OPENAI_API_KEY', os.environ.get('ANTHROPIC_API_KEY'))
+        return os.environ.get('OPENAI_API_KEY', os.environ.get('ANTHROPIC_API_KEY', 'not-needed'))
 
 
 def verify_llm_connection() -> bool:
     """Verify the LLM endpoint is reachable at startup.
 
-    For openai-compatible providers, this makes a test request to verify
-    the endpoint is accessible. For Anthropic, this just verifies the
-    API key is set.
+    For openai-compatible providers (including Ollama), this makes a test
+    request to verify the endpoint is accessible -- no API key is required.
+    For Anthropic, this just verifies the API key is set.
 
     Returns:
         True if verification passed, False otherwise
     """
     provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
-    api_key = get_api_key()
-
-    if not api_key:
-        logger.warning("No LLM API key configured - ad detection and chapter generation will be disabled")
-        return False
 
     if provider in ('openai-compatible', 'openai', 'wrapper', 'ollama'):
         base_url = os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
+        if provider == 'ollama' and not base_url.rstrip('/').endswith('/v1'):
+            base_url = base_url.rstrip('/') + '/v1'
         logger.info(f"Verifying LLM endpoint: {base_url}")
 
         try:
@@ -513,7 +594,11 @@ def verify_llm_connection() -> bool:
             logger.error(f"LLM endpoint verification failed: {e}")
             return False
     else:
-        # For Anthropic, just verify API key is present
+        # For Anthropic, verify API key is present
+        api_key = get_api_key()
+        if not api_key:
+            logger.warning("No LLM API key configured - ad detection and chapter generation will be disabled")
+            return False
         logger.info(f"LLM provider: {provider} (API key configured)")
         return True
 

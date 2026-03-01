@@ -6,6 +6,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.33] - 2026-03-01
+
+### Fixed
+- **Provider-aware model seeds**: `_seed_default_settings()` now uses `LLM_PROVIDER` and `OPENAI_MODEL` env vars when seeding `verification_model` and `chapters_model`. Fresh Ollama installs no longer get hardcoded Anthropic model names that would 404.
+- **Provider-aware `reset_setting()`**: Resetting `claude_model`, `verification_model`, or `chapters_model` now respects `LLM_PROVIDER`/`OPENAI_MODEL` instead of always resetting to Anthropic constants.
+- **Non-Anthropic provider timeouts**: `get_llm_timeout()` and `get_llm_max_retries()` now apply extended timeouts/reduced retries for all non-Anthropic providers (`openai-compatible`, `wrapper`, `ollama`), not just `ollama`.
+- **UI staleness after processing**: `GlobalStatusBar` SSE handler now invalidates React Query caches when a job completes or a feed refresh finishes, so `FeedDetail`, `EpisodeDetail`, and `Dashboard` auto-update without manual refresh.
+
+### Changed
+- **README**: Renamed "Claude Model" to "AI Model" in settings docs to match UI. Fixed `OPENAI_MODEL` env var table to show no default (was misleadingly showing the Anthropic model name).
+
+## [1.0.32] - 2026-03-01
+
+### Fixed
+- **Chapters model DB lookup broken**: `get_chapters_model()` used `from database import PodcastDatabase` but the class is actually `Database`. Both the `chapters_model` and `claude_model` DB lookups silently failed via the caught exception, causing the function to always fall through to the hardcoded Anthropic model name -- breaking Ollama setups even after the 1.0.31 provider-aware fallback was added.
+
+## [1.0.31] - 2026-03-01
+
+### Fixed
+- **TextPatternMatcher vectorizer crash**: Guard `_load_patterns()` against None vectorizer. When `skip_patterns=True` (AI-only reprocess mode), `_ensure_initialized()` was never called, but pattern creation still triggered `_load_patterns()` which called `self._vectorizer.fit()` on None. Now auto-initializes the vectorizer on demand, with a graceful fallback if sklearn is unavailable.
+- **Chapters model 404 on Ollama**: `get_chapters_model()` now falls back to the user's primary detection model (`claude_model` DB setting) when `LLM_PROVIDER` is not `anthropic`, instead of hardcoding `claude-haiku-4-5-20251001` which Ollama doesn't have.
+
+### Added
+- **Chapters model DB seed**: `_seed_default_settings()` now seeds `chapters_model` with a provider-aware default so fresh Ollama installs get a valid model out of the box.
+- **README table of contents**: Added a linked table of contents for easier navigation.
+
+## [1.0.30] - 2026-03-01
+
+### Fixed
+- **Ollama single-object response parsing**: qwen3 (and potentially other models) return a bare JSON object `{...}` instead of an array `[{...}]` when detecting a single ad. The parser now detects objects with start/end timestamp keys and wraps them in an array, preventing silent ad drops. Anthropic code path is unaffected (always returns arrays).
+
+### Added
+- **LLM response logging**: Raw LLM response text is now logged at INFO level (first 500 chars) for both detection and verification windows. Enables debugging unexpected model output via Grafana without needing to query the database.
+- **Reasoning field logging**: `OpenAICompatibleClient` now logs the presence and size of reasoning/chain-of-thought fields (e.g. qwen3 think mode) at DEBUG level.
+
+### Changed
+- **README model tables**: Replaced single flat model recommendation table with per-pass tables (Pass 1 / Verification / Chapters) reflecting that different passes have different model requirements.
+
+## [1.0.29] - 2026-03-01
+
+### Fixed
+- **Ollama LLM timeouts**: Made LLM request timeouts and retry counts provider-aware. Ollama/local models now get 600s timeout (up from 120s) and 2 retries (down from 3) since local inference is much slower than cloud APIs. Fixes `Window N API error: Request timed out` when using `LLM_PROVIDER=ollama`.
+- **Chapters generator missing timeout**: All 3 LLM calls in `chapters_generator.py` previously inherited the 120s default timeout. Now explicitly pass the provider-aware timeout.
+
+### Added
+- `LLM_TIMEOUT_DEFAULT`, `LLM_TIMEOUT_LOCAL`, `LLM_RETRY_MAX_RETRIES`, `LLM_RETRY_MAX_RETRIES_LOCAL` constants in `config.py`
+- `get_llm_timeout()` and `get_llm_max_retries()` helpers in `llm_client.py`
+
+## [1.0.28] - 2026-03-01
+
+### Fixed
+- **Ollama model listing 404**: Auto-append `/v1` to `OPENAI_BASE_URL` when `LLM_PROVIDER=ollama` and the URL doesn't already end with `/v1`. Fixes 404 errors on model listing and chat completions (`GET /models` -> `GET /v1/models`).
+- **Ollama native fallback**: Added `_try_ollama_native_list()` method that queries Ollama's native `/api/tags` endpoint as a fallback when the OpenAI-compatible `/v1/models` endpoint fails. Used in both model listing and connection verification.
+
+### Changed
+- **Generic LLM naming in UI**: Replaced all user-facing "Claude" references with "AI" in Settings page ("AI Model"), EpisodeDetail reprocess buttons ("Patterns + AI", "Skip patterns, AI only"), and FeedDetail reprocess menus/modals.
+- **Generic LLM naming in API docs**: Updated OpenAPI spec to use "AI model" / "AI analysis" instead of "Claude" in descriptions for model selection, reprocess modes, settings, and confidence fields. Example model values kept as-is.
+
+## [1.0.27] - 2026-03-01
+
+### Added
+- **Configurable chapters model**: Chapter generation no longer hardcodes Haiku. New `chapters_model` DB setting with `get_chapters_model()` function, exposed via Settings API and UI dropdown (visible when chapters are enabled). Defaults to `claude-haiku-4-5-20251001` for Anthropic users; Ollama users can select any available model.
+
+### Changed
+- **Ollama recommended models table**: Updated README table with Qwen 3.5 family models, added "Size on Disk" column, refreshed entries across all VRAM tiers.
+
+## [1.0.26] - 2026-03-01
+
+### Fixed
+- **Ollama model filter**: Removed name-based filter in `OpenAICompatibleClient.list_models()` that only showed models containing "claude", "gpt", or "llama". All models reported by the endpoint are now listed, so Ollama models like qwen3, mistral, and phi4-mini appear correctly.
+- **Ollama fallback models**: `OpenAICompatibleClient._get_fallback_models()` now returns the configured `OPENAI_MODEL` value instead of hardcoded Claude models.
+- **Ollama startup blocked by API key check**: `get_api_key()` now defaults to `"not-needed"` for non-anthropic providers. `verify_llm_connection()` restructured so Ollama/openai-compatible providers skip the API key gate and go straight to the endpoint connection test.
+- **README env var table**: Added `ollama` as a valid `LLM_PROVIDER` value. Added missing `OPENAI_MODEL` row.
+
+### Added
+- **README Ollama section**: Dedicated documentation covering Ollama setup, recommended models by VRAM tier, accuracy comparison vs Claude, and JSON reliability risks.
+
 ## [1.0.25] - 2026-03-01
 
 ### Fixed

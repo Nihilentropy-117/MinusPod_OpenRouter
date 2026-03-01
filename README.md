@@ -6,6 +6,24 @@ Removes ads from podcasts using Whisper transcription. Serves modified RSS feeds
 
 > **Disclaimer:** This tool is for personal use only. Only use it with podcasts you have permission to modify or where such modification is permitted under applicable laws. Respect content creators and their terms of service.
 
+## Table of Contents
+
+- [How It Works](#how-it-works)
+- [Advanced Features](#advanced-features-quick-reference)
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+- [Web Interface](#web-interface)
+- [Configuration](#configuration)
+- [Finding Podcast RSS Feeds](#finding-podcast-rss-feeds)
+- [Usage](#usage)
+- [Environment Variables](#environment-variables)
+- [Using Ollama (Local LLM)](#using-ollama-local-llm)
+- [API](#api)
+- [Remote Access](#remote-access)
+- [Data Storage](#data-storage)
+- [Custom Assets](#custom-assets-optional)
+- [License](#license)
+
 ## How It Works
 
 1. **Transcription** - Whisper converts audio to text with timestamps
@@ -278,8 +296,9 @@ All configuration is managed through the web UI or REST API. No config files nee
 ### Ad Detection Settings
 
 Customize ad detection in Settings:
-- **Claude Model** - Model for first pass ad detection
+- **AI Model** - Model for first pass ad detection
 - **Verification Model** - Separate model for the post-cut verification pass
+- **Chapters Model** - Model for chapter generation (defaults to Haiku for cost efficiency)
 - **System Prompts** - Customizable prompts for first pass and verification detection
 
 ## Finding Podcast RSS Feeds
@@ -308,9 +327,10 @@ The feed URL is shown in the web UI and can be copied to clipboard.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | required | Claude API key (required for default Anthropic provider) |
-| `LLM_PROVIDER` | `anthropic` | LLM backend: `anthropic` (direct API) or `openai-compatible` (wrapper/Ollama) |
-| `OPENAI_BASE_URL` | `http://localhost:8000/v1` | Base URL for OpenAI-compatible API (only used if `LLM_PROVIDER=openai-compatible`) |
-| `OPENAI_API_KEY` | `not-needed` | API key for OpenAI-compatible endpoint (often not required for local wrappers) |
+| `LLM_PROVIDER` | `anthropic` | LLM backend: `anthropic` (direct API), `openai-compatible` (wrapper), or `ollama` |
+| `OPENAI_BASE_URL` | `http://localhost:8000/v1` | Base URL for OpenAI-compatible API (only used with non-anthropic providers) |
+| `OPENAI_API_KEY` | `not-needed` | API key for OpenAI-compatible endpoint (not required for Ollama or local wrappers) |
+| `OPENAI_MODEL` | _(none)_ | Model for OpenAI-compatible/Ollama providers. **Required for Ollama** (e.g. `qwen3:14b`). Defaults to `claude-sonnet-4-5-20250929` for wrapper mode if unset. |
 | `BASE_URL` | `http://localhost:8000` | Public URL for generated feed links |
 | `WHISPER_MODEL` | `small` | Whisper model size (tiny/base/small/medium/large) |
 | `WHISPER_DEVICE` | `cuda` | Device for Whisper (cuda/cpu) |
@@ -363,7 +383,119 @@ OPENAI_API_KEY=not-needed
 BASE_URL=http://localhost:8000
 ```
 
-Note: The Claude model is configured via the Settings UI, not environment variables.
+Note: The AI model is configured via the Settings UI, not environment variables.
+
+## Using Ollama (Local LLM)
+
+MinusPod supports [Ollama](https://ollama.com) as a drop-in replacement for the Anthropic API. This lets you run ad detection entirely locally with no API costs or data leaving your machine.
+
+### Setup
+
+1. Install and start Ollama on your host machine
+2. Pull a model (see recommendations below): `ollama pull qwen3:14b`
+3. Update your `docker-compose.yml`:
+
+```yaml
+environment:
+  - LLM_PROVIDER=ollama
+  - OPENAI_BASE_URL=http://host.docker.internal:11434/v1
+  - OPENAI_MODEL=qwen3:14b
+```
+
+> **Linux users:** `host.docker.internal` doesn't resolve by default. Add this to your service definition:
+> ```yaml
+> extra_hosts:
+>   - "host.docker.internal:host-gateway"
+> ```
+
+The `OPENAI_API_KEY` variable is not required for Ollama. Token counts will still be tracked in the UI but cost will always show as $0.00, which is accurate since local inference is free.
+
+---
+
+### Recommended Models
+
+Models are loaded sequentially, not concurrently -- VRAM requirements are not additive between passes.
+
+#### Pass 1 -- First Pass Detection
+
+Hardest task. Contextual reasoning, host-read ads, new sponsors. Use your best model here.
+
+| VRAM | Model | Quantization | Notes |
+|------|-------|--------------|-------|
+| 8GB | `qwen3:8b` | Q4_K_M | Entry level. Handles standard sponsor reads well. |
+| 12GB | `qwen3:14b` | Q4_K_M | Best quality-to-VRAM ratio. **Recommended.** |
+| 16GB | `qwen3:14b` | Q5_K_M | Higher quality quant; use if you have headroom. |
+| 24GB | `qwen3.5:27b` | Q4_K_M | Strong contextual reasoning. 256K context. |
+| 24GB | `qwen3.5:35b` | Q4_K_M | Best quality under 40GB. 256K context. |
+| 40GB+ | `qwen3.5:122b` | Q4_K_M | Closest open-weights match to Claude Sonnet quality. |
+
+#### Verification Pass
+
+Easier task. Looks for remnants in already-cut audio. Speed matters more than raw accuracy.
+
+| VRAM | Model | Quantization | Notes |
+|------|-------|--------------|-------|
+| 8GB | `qwen3:4b` | Q8_0 | Fast, good JSON compliance. Verification prompt is simpler. |
+| 12GB | `qwen3:8b` | Q5_K_M | Strong JSON compliance, faster than 14B. |
+| 16GB | `mistral-nemo:12b` | Q4_K_M | Excellent JSON reliability, fast inference. |
+| 24GB | `qwen3:14b` | Q5_K_M | Overkill for verification but uses available VRAM productively. |
+
+#### Chapters
+
+Simplest task. Summarization only -- no structured detection. Minimize cost and latency.
+
+| VRAM | Model | Quantization | Notes |
+|------|-------|--------------|-------|
+| Any | `qwen3:4b` | Q4_K_M | Sufficient for summarization. Fast. |
+| Any | `phi4-mini` | Q4_K_M | Lean alternative, strong instruction following. |
+| Any | `llama3.2:3b` | Q4_K_M | Smallest viable option if VRAM is tight. |
+
+> **Example split for 16GB VRAM:** Pass 1 -> `qwen3:14b Q5_K_M` / Verification -> `qwen3:8b Q5_K_M` / Chapters -> `qwen3:4b Q4_K_M`
+
+> **Avoid models under 7B for production use.** JSON reliability degrades significantly at smaller sizes, which causes silent detection failures rather than recoverable errors (see below).
+
+---
+
+### Accuracy vs. Claude
+
+Switching to a local model will reduce detection accuracy. The impact depends on the content and model size.
+
+**What is unaffected:** Audio fingerprinting, text pattern matching, pre/post-roll heuristics, and audio signal enforcement all run without the LLM. These catch a substantial portion of ads regardless of which model is used.
+
+**What is affected:** The LLM passes (first pass and verification) handle the hard cases -- host-read ads that blend into content, new sponsors not yet in the pattern database, and ambiguous mid-rolls without explicit promo codes. This is where open-weights models fall short of Claude.
+
+| Content Type | Expected Impact |
+|---|---|
+| Podcasts with standard sponsor reads and promo codes | Minimal -- patterns and fingerprinting cover most of these |
+| Podcasts with heavy host-read / conversational ad integrations | Noticeable -- these require strong contextual reasoning |
+| New sponsors not yet in the pattern database | Moderate -- depends heavily on model capability |
+
+As a rough guide: a capable model like `qwen3:14b` will perform well on most podcasts. The gap becomes more apparent on shows where hosts weave sponsor content naturally into conversation without clear transitions.
+
+---
+
+### JSON Reliability Risks
+
+MinusPod's ad detection pipeline requires models to return structured JSON. The Anthropic API enforces this reliably. With Ollama, enforcement is model-dependent and failures are more likely.
+
+**How failures manifest:**
+
+- **Malformed JSON** -- Missing brackets, trailing commas, or unquoted keys. The parser has multiple fallback strategies (direct parse, markdown code block extraction, regex scan) but structurally broken JSON will fall through all of them.
+- **Truncated output** -- Models under memory pressure or processing long transcript windows may cut off mid-response, producing valid-looking but incomplete JSON that fails to parse.
+- **Preamble text** -- Some models prefix their JSON with conversational text ("Sure, here are the ads I found:"). The parser handles this in most cases, but it adds fragility.
+
+**When a window fails to parse, those ads are silently missed.** There is no error surfaced to the UI -- the episode will process normally but with gaps in detection coverage.
+
+**How to reduce this risk:**
+
+- Use a model of at least 7B parameters
+- Prefer the Qwen3 or Mistral model families, which have strong JSON compliance
+- Avoid running other GPU workloads concurrently -- memory pressure increases truncation risk
+- Check processing logs for parse failures if detection quality seems lower than expected
+
+**How to check for failures:**
+
+Look for `json_parse_failed` or `extraction_method` entries in the application logs. A healthy run will show `json_array_direct` as the extraction method. Fallback methods (`markdown_code_block`, regex variants) indicate the model isn't returning clean JSON and you should consider upgrading to a larger model.
 
 ## API
 

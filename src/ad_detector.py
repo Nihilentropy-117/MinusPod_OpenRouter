@@ -7,7 +7,8 @@ import random
 from typing import List, Dict, Optional
 from llm_client import (
     get_llm_client, get_api_key, LLMClient, FALLBACK_MODELS,
-    is_retryable_error, is_rate_limit_error
+    is_retryable_error, is_rate_limit_error,
+    get_llm_timeout, get_llm_max_retries
 )
 from utils.time import parse_timestamp, first_not_none
 
@@ -1276,6 +1277,12 @@ class AdDetector:
                     ads = [s for s in parsed['segments']
                            if isinstance(s, dict) and s.get('type') == 'advertisement']
                     return ads, "json_object_segments_key"
+                # Single ad object (e.g. Ollama/qwen3 returns bare dict instead of array)
+                _start_keys = ('start', 'start_time', 'start_timestamp', 'ad_start_timestamp', 'start_time_seconds')
+                _end_keys = ('end', 'end_time', 'end_timestamp', 'ad_end_timestamp', 'end_time_seconds')
+                if any(k in parsed for k in _start_keys) and any(k in parsed for k in _end_keys):
+                    logger.info(f"[{slug}:{episode_id}] Single ad object detected, wrapping in array")
+                    return [parsed], "json_object_single_ad"
                 return [], "json_object_no_ads"
         except json.JSONDecodeError:
             pass
@@ -1628,7 +1635,8 @@ class AdDetector:
 
             all_window_ads = []
             all_raw_responses = []
-            max_retries = RETRY_CONFIG['max_retries']
+            llm_timeout = get_llm_timeout()
+            max_retries = get_llm_max_retries()
 
             # Instantiate audio signal formatter if audio analysis available
             audio_enforcer = None
@@ -1692,7 +1700,7 @@ class AdDetector:
                             temperature=0.0,
                             system=system_prompt,
                             messages=[{"role": "user", "content": prompt}],
-                            timeout=120.0,
+                            timeout=llm_timeout,
                             response_format={"type": "json_object"}
                         )
                         break
@@ -1725,6 +1733,9 @@ class AdDetector:
                 # Parse response (LLMResponse.content is already extracted text)
                 response_text = response.content
                 all_raw_responses.append(f"=== Window {i+1} ({window_start/60:.1f}-{window_end/60:.1f}min) ===\n{response_text}")
+
+                preview = response_text[:500] + ('...' if len(response_text) > 500 else '')
+                logger.info(f"[{slug}:{episode_id}] Window {i+1} LLM response ({len(response_text)} chars): {preview}")
 
                 # Parse ads from response
                 window_ads = self._parse_ads_from_response(response_text, slug, episode_id)
@@ -2376,7 +2387,8 @@ class AdDetector:
 
             all_window_ads = []
             all_raw_responses = []
-            max_retries = RETRY_CONFIG['max_retries']
+            llm_timeout = get_llm_timeout()
+            max_retries = get_llm_max_retries()
 
             # Instantiate audio signal formatter if audio analysis available
             audio_enforcer = None
@@ -2432,7 +2444,7 @@ class AdDetector:
                             temperature=0.0,
                             system=system_prompt,
                             messages=[{"role": "user", "content": prompt}],
-                            timeout=120.0,
+                            timeout=llm_timeout,
                             response_format={"type": "json_object"}
                         )
                         break
@@ -2463,6 +2475,9 @@ class AdDetector:
                 all_raw_responses.append(
                     f"=== Window {i+1} ({window_start/60:.1f}-{window_end/60:.1f}min) ===\n{response_text}"
                 )
+
+                preview = response_text[:500] + ('...' if len(response_text) > 500 else '')
+                logger.info(f"[{slug}:{episode_id}] Verification Window {i+1} LLM response ({len(response_text)} chars): {preview}")
 
                 window_ads = self._parse_ads_from_response(response_text, slug, episode_id)
 

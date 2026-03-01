@@ -104,6 +104,7 @@ export interface Settings {
   audioBitrate: SettingValue;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
+  chaptersModel: SettingValue;
   minCutConfidence: SettingValueNumber;
   retentionPeriodMinutes: number;
   defaults: {
@@ -115,6 +116,7 @@ export interface Settings {
     autoProcessEnabled: boolean;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
+    chaptersModel: string;
     minCutConfidence: number;
   };
 }
@@ -129,6 +131,7 @@ export interface UpdateSettingsPayload {
   audioBitrate?: string;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
+  chaptersModel?: string;
   minCutConfidence?: number;
 }
 

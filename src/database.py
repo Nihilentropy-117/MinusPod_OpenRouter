@@ -1324,10 +1324,12 @@ class Database:
 
         # Verification pass model (defaults to same as first pass)
         from ad_detector import DEFAULT_MODEL
+        provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
+        env_model = os.environ.get('OPENAI_MODEL') if provider != 'anthropic' else None
         conn.execute(
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
                ON CONFLICT(key) DO NOTHING""",
-            ('verification_model', DEFAULT_MODEL)
+            ('verification_model', env_model or DEFAULT_MODEL)
         )
 
         # Migrate old second_pass settings to verification settings
@@ -1410,6 +1412,14 @@ class Database:
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
                ON CONFLICT(key) DO NOTHING""",
             ('chapters_enabled', 'true')
+        )
+
+        # Chapters model (Podcasting 2.0) - provider-aware default
+        from chapters_generator import CHAPTERS_MODEL
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('chapters_model', env_model or CHAPTERS_MODEL)
         )
 
         conn.commit()
@@ -1887,16 +1897,28 @@ class Database:
         """Reset a setting to its default value."""
         # Import here to avoid circular import
         from ad_detector import DEFAULT_MODEL
+        from chapters_generator import CHAPTERS_MODEL
+
+        # Provider-aware defaults for model settings
+        provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
+        if provider != 'anthropic':
+            env_model = os.environ.get('OPENAI_MODEL')
+            model_default = env_model or DEFAULT_MODEL
+            chapters_default = env_model or CHAPTERS_MODEL
+        else:
+            model_default = DEFAULT_MODEL
+            chapters_default = CHAPTERS_MODEL
 
         defaults = {
             'system_prompt': DEFAULT_SYSTEM_PROMPT,
             'verification_prompt': DEFAULT_VERIFICATION_PROMPT,
             'retention_period_minutes': os.environ.get('RETENTION_PERIOD', '1440'),
-            'claude_model': DEFAULT_MODEL,
-            'verification_model': DEFAULT_MODEL,
+            'claude_model': model_default,
+            'verification_model': model_default,
             'whisper_model': os.environ.get('WHISPER_MODEL', 'small'),
             'vtt_transcripts_enabled': 'true',
-            'chapters_enabled': 'true'
+            'chapters_enabled': 'true',
+            'chapters_model': chapters_default,
         }
 
         if key in defaults:
