@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.23] - 2026-03-01
+
+### Fixed
+- **Audio seek on ad switch**: Clicking ad pills, navigating with next/prev, or auto-advancing after confirm/save now seeks the audio to the new ad's start time. Previously the progress bar stayed at its old position.
+
+### Changed
+- **Mobile bottom sheet redesign**: Start/End time controls now stack vertically (one per row) instead of side-by-side, fixing cut-off inputs on narrow screens. Progress bar moved to top of bottom sheet for full width. Action buttons use full-width flex row with inline icon+text. Input font bumped to 16px (text-base) for readability. Reduced internal padding (px-3) to reclaim screen space on mobile.
+- **Desktop time controls visibility**: Stepper buttons use filled bg-muted background instead of ghost border for clearer interactivity. Labels uppercase with tracking. Icons and text use text-foreground instead of text-muted-foreground.
+- **Tighter mobile spacing**: Header, pill selector, reason panel, and grab handle all use reduced padding on mobile (px-3/py-2.5) while preserving desktop padding (px-4/py-3).
+
 ## [1.0.20] - 2026-03-01
 
 ### Changed

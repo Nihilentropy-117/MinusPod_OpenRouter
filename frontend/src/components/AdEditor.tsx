@@ -96,7 +96,7 @@ export function AdEditor({
 
   const selectedAd = detectedAds[selectedAdIndex];
 
-  // Initialize adjusted bounds when ad changes
+  // Initialize adjusted bounds and seek audio when ad changes
   useEffect(() => {
     if (selectedAd) {
       setAdjustedStart(selectedAd.start);
@@ -104,6 +104,10 @@ export function AdEditor({
       // Reset relative adjustments
       setStartAdjustment(0);
       setEndAdjustment(0);
+      // Seek audio to the new ad's start time
+      if (audioRef.current) {
+        audioRef.current.currentTime = selectedAd.start;
+      }
     }
   }, [selectedAd]);
 
@@ -359,7 +363,7 @@ export function AdEditor({
       {/* TOP: Header + Ad Selector */}
       <div className="bg-card flex-shrink-0">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm font-medium">
               Ad {selectedAdIndex + 1} of {detectedAds.length}
@@ -409,7 +413,7 @@ export function AdEditor({
           )}
         </div>
         {/* Ad selector pills - all viewports */}
-        <div className="flex gap-2 px-4 py-2 border-b border-border overflow-x-auto scroll-smooth touch-pan-x">
+        <div className="flex gap-2 px-3 sm:px-4 py-1.5 sm:py-2 border-b border-border overflow-x-auto scroll-smooth touch-pan-x">
           {detectedAds.map((ad, index) => (
             <button
               key={index}
@@ -427,7 +431,7 @@ export function AdEditor({
       </div>
 
       {/* Reason panel - inline, no stretch */}
-      <div className="p-4 min-h-0 overflow-y-auto">
+      <div className="px-3 sm:px-4 py-3 sm:py-4 min-h-0 overflow-y-auto">
         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Why this was flagged</h4>
         {selectedAd.reason ? (
           <p className="text-sm text-foreground break-words mb-4">
@@ -494,8 +498,8 @@ export function AdEditor({
             <div className="flex items-center gap-4">
               {/* Start Adjustment */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Start</span>
-                <div className="flex items-center rounded-md border border-border overflow-hidden">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Start</span>
+                <div className="flex items-center rounded-lg bg-muted overflow-hidden">
                   <button
                     onClick={() => {
                       const newAdj = startAdjustment - 1;
@@ -504,12 +508,12 @@ export function AdEditor({
                       setAdjustedStart(newStart);
                       triggerHaptic();
                     }}
-                    className="p-2 hover:bg-accent active:bg-accent/80 active:scale-95 transition-all text-muted-foreground hover:text-foreground"
+                    className="px-2.5 py-2 hover:bg-accent active:bg-accent/80 active:scale-95 transition-all text-foreground"
                     aria-label="Decrease start adjustment"
                   >
-                    <Minus className="w-3.5 h-3.5" />
+                    <Minus className="w-4 h-4" />
                   </button>
-                  <div className="relative flex items-center border-x border-border">
+                  <div className="relative flex items-center border-x border-border/50">
                     <input
                       type="number"
                       value={startAdjustment}
@@ -519,7 +523,7 @@ export function AdEditor({
                         const newStart = Math.max(0, (selectedAd?.start || 0) + val);
                         setAdjustedStart(newStart);
                       }}
-                      className="w-12 text-center text-sm font-mono bg-transparent pr-3 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-12 text-center text-sm font-mono font-medium bg-transparent pr-3 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       step="1"
                     />
                     <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>
@@ -532,17 +536,17 @@ export function AdEditor({
                       setAdjustedStart(newStart);
                       triggerHaptic();
                     }}
-                    className="p-2 hover:bg-accent active:bg-accent/80 active:scale-95 transition-all text-muted-foreground hover:text-foreground"
+                    className="px-2.5 py-2 hover:bg-accent active:bg-accent/80 active:scale-95 transition-all text-foreground"
                     aria-label="Increase start adjustment"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
               {/* End Adjustment */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">End</span>
-                <div className="flex items-center rounded-md border border-border overflow-hidden">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">End</span>
+                <div className="flex items-center rounded-lg bg-muted overflow-hidden">
                   <button
                     onClick={() => {
                       const newAdj = endAdjustment - 1;
@@ -552,12 +556,12 @@ export function AdEditor({
                       setAdjustedEnd(newEnd);
                       triggerHaptic();
                     }}
-                    className="p-2 hover:bg-accent active:bg-accent/80 active:scale-95 transition-all text-muted-foreground hover:text-foreground"
+                    className="px-2.5 py-2 hover:bg-accent active:bg-accent/80 active:scale-95 transition-all text-foreground"
                     aria-label="Decrease end adjustment"
                   >
-                    <Minus className="w-3.5 h-3.5" />
+                    <Minus className="w-4 h-4" />
                   </button>
-                  <div className="relative flex items-center border-x border-border">
+                  <div className="relative flex items-center border-x border-border/50">
                     <input
                       type="number"
                       value={endAdjustment}
@@ -568,7 +572,7 @@ export function AdEditor({
                         const newEnd = Math.min(maxEnd, (selectedAd?.end || 0) + val);
                         setAdjustedEnd(newEnd);
                       }}
-                      className="w-12 text-center text-sm font-mono bg-transparent pr-3 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-12 text-center text-sm font-mono font-medium bg-transparent pr-3 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       step="1"
                     />
                     <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>
@@ -582,10 +586,10 @@ export function AdEditor({
                       setAdjustedEnd(newEnd);
                       triggerHaptic();
                     }}
-                    className="p-2 hover:bg-accent active:bg-accent/80 active:scale-95 transition-all text-muted-foreground hover:text-foreground"
+                    className="px-2.5 py-2 hover:bg-accent active:bg-accent/80 active:scale-95 transition-all text-foreground"
                     aria-label="Increase end adjustment"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -670,49 +674,52 @@ export function AdEditor({
         {/* Grab handle */}
         <button
           onClick={() => setAudioSheetExpanded(!audioSheetExpanded)}
-          className="w-full flex justify-center py-2 touch-manipulation"
+          className="w-full flex justify-center py-1.5 touch-manipulation"
         >
-          <div className="w-12 h-1 bg-muted-foreground/30 rounded-full" />
+          <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
         </button>
 
         {/* Mini player (collapsed) */}
         {!audioSheetExpanded && (
-          <div className="px-4 pb-3 space-y-3">
-            <div className="flex items-center gap-3">
+          <div className="px-3 pb-3 space-y-2">
+            {/* Progress bar - full width, above controls */}
+            <div
+              ref={progressBarRef}
+              className={`relative bg-muted rounded-full cursor-pointer touch-manipulation transition-all ${isDraggingProgress ? 'h-5' : 'h-2'}`}
+              onClick={handleProgressClick}
+              onTouchStart={handleProgressDragStart}
+              onTouchMove={handleProgressDrag}
+              onTouchEnd={handleProgressDragEnd}
+            >
+              <div
+                className="absolute top-0 left-0 h-full bg-primary rounded-full pointer-events-none"
+                style={{ width: `${(currentTime / (audioDuration || 1)) * 100}%` }}
+              />
+              <div
+                className={`absolute top-1/2 -translate-y-1/2 bg-primary rounded-full shadow-md transition-all pointer-events-none ${isDraggingProgress ? 'w-6 h-6' : 'w-3 h-3'}`}
+                style={{ left: `calc(${(currentTime / (audioDuration || 1)) * 100}% - ${isDraggingProgress ? '12px' : '6px'})` }}
+              />
+            </div>
+            {/* Play + time display row */}
+            <div className="flex items-center gap-2">
               <button
                 onClick={handlePlayPause}
-                className="p-3 rounded-full bg-primary text-primary-foreground active:scale-95 touch-manipulation min-w-[48px] min-h-[48px] flex items-center justify-center transition-all"
+                className="p-2 rounded-full bg-primary text-primary-foreground active:scale-95 touch-manipulation flex items-center justify-center transition-all flex-shrink-0"
                 aria-label={isPlaying ? 'Pause' : 'Play'}
               >
-                {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+                {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
               </button>
-              <span className="text-sm font-mono w-12">{formatTime(currentTime)}</span>
-              {/* Draggable progress bar */}
-              <div
-                ref={progressBarRef}
-                className={`flex-1 relative bg-muted rounded-full cursor-pointer touch-manipulation transition-all ${isDraggingProgress ? 'h-5' : 'h-4'}`}
-                onClick={handleProgressClick}
-                onTouchStart={handleProgressDragStart}
-                onTouchMove={handleProgressDrag}
-                onTouchEnd={handleProgressDragEnd}
-              >
-                <div
-                  className="absolute top-0 left-0 h-full bg-primary rounded-full pointer-events-none"
-                  style={{ width: `${(currentTime / (audioDuration || 1)) * 100}%` }}
-                />
-                {/* Thumb indicator */}
-                <div
-                  className={`absolute top-1/2 -translate-y-1/2 bg-primary rounded-full shadow-md transition-all pointer-events-none ${isDraggingProgress ? 'w-6 h-6' : 'w-4 h-4'}`}
-                  style={{ left: `calc(${(currentTime / (audioDuration || 1)) * 100}% - ${isDraggingProgress ? '12px' : '8px'})` }}
-                />
-              </div>
+              <span className="text-xs font-mono text-muted-foreground">{formatTime(currentTime)}</span>
+              <span className="text-xs text-muted-foreground mx-auto font-mono">
+                {formatTime(adjustedStart)} - {formatTime(adjustedEnd)} ({formatTime(adjustedEnd - adjustedStart)})
+              </span>
             </div>
-            {/* Time controls */}
-            <div className="flex items-center justify-center gap-3">
-              {/* Start Adjustment */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Start</span>
-                <div className="flex items-center rounded-md border border-border overflow-hidden">
+            {/* Time controls - each gets a full row */}
+            <div className="space-y-1.5">
+              {/* Start row */}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide w-10 flex-shrink-0">Start</span>
+                <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden h-10">
                   <button
                     onClick={() => {
                       const newAdj = startAdjustment - 1;
@@ -721,12 +728,12 @@ export function AdEditor({
                       setAdjustedStart(newStart);
                       triggerHaptic();
                     }}
-                    className="p-2 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center transition-all text-muted-foreground"
+                    className="px-4 h-full active:bg-accent/80 active:scale-95 touch-manipulation flex items-center justify-center transition-all text-foreground"
                     aria-label="Decrease start adjustment"
                   >
-                    <Minus className="w-3.5 h-3.5" />
+                    <Minus className="w-4 h-4" />
                   </button>
-                  <div className="relative flex items-center border-x border-border">
+                  <div className="relative flex-1 flex items-center justify-center border-x border-border/40 h-full">
                     <input
                       type="number"
                       value={startAdjustment}
@@ -736,10 +743,10 @@ export function AdEditor({
                         const newStart = Math.max(0, (selectedAd?.start || 0) + val);
                         setAdjustedStart(newStart);
                       }}
-                      className="w-10 text-center text-sm font-mono bg-transparent pr-2.5 py-1 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-full text-center text-base font-mono font-medium bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       step="1"
                     />
-                    <span className="absolute right-0.5 text-[10px] text-muted-foreground pointer-events-none">s</span>
+                    <span className="absolute right-2 text-xs text-muted-foreground pointer-events-none">s</span>
                   </div>
                   <button
                     onClick={() => {
@@ -749,17 +756,17 @@ export function AdEditor({
                       setAdjustedStart(newStart);
                       triggerHaptic();
                     }}
-                    className="p-2 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center transition-all text-muted-foreground"
+                    className="px-4 h-full active:bg-accent/80 active:scale-95 touch-manipulation flex items-center justify-center transition-all text-foreground"
                     aria-label="Increase start adjustment"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-              {/* End Adjustment */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">End</span>
-                <div className="flex items-center rounded-md border border-border overflow-hidden">
+              {/* End row */}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide w-10 flex-shrink-0">End</span>
+                <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden h-10">
                   <button
                     onClick={() => {
                       const newAdj = endAdjustment - 1;
@@ -769,12 +776,12 @@ export function AdEditor({
                       setAdjustedEnd(newEnd);
                       triggerHaptic();
                     }}
-                    className="p-2 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center transition-all text-muted-foreground"
+                    className="px-4 h-full active:bg-accent/80 active:scale-95 touch-manipulation flex items-center justify-center transition-all text-foreground"
                     aria-label="Decrease end adjustment"
                   >
-                    <Minus className="w-3.5 h-3.5" />
+                    <Minus className="w-4 h-4" />
                   </button>
-                  <div className="relative flex items-center border-x border-border">
+                  <div className="relative flex-1 flex items-center justify-center border-x border-border/40 h-full">
                     <input
                       type="number"
                       value={endAdjustment}
@@ -785,10 +792,10 @@ export function AdEditor({
                         const newEnd = Math.min(maxEnd, (selectedAd?.end || 0) + val);
                         setAdjustedEnd(newEnd);
                       }}
-                      className="w-10 text-center text-sm font-mono bg-transparent pr-2.5 py-1 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-full text-center text-base font-mono font-medium bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       step="1"
                     />
-                    <span className="absolute right-0.5 text-[10px] text-muted-foreground pointer-events-none">s</span>
+                    <span className="absolute right-2 text-xs text-muted-foreground pointer-events-none">s</span>
                   </div>
                   <button
                     onClick={() => {
@@ -799,57 +806,57 @@ export function AdEditor({
                       setAdjustedEnd(newEnd);
                       triggerHaptic();
                     }}
-                    className="p-2 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center transition-all text-muted-foreground"
+                    className="px-4 h-full active:bg-accent/80 active:scale-95 touch-manipulation flex items-center justify-center transition-all text-foreground"
                     aria-label="Increase end adjustment"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             </div>
-            {/* Action buttons with labels */}
-            <div className="flex items-center justify-center gap-2">
+            {/* Action buttons - full width row */}
+            <div className="flex items-center gap-1.5 pt-0.5">
               <button
                 onClick={handleReject}
                 disabled={saveStatus === 'saving'}
-                className={`p-2 min-w-[56px] min-h-[56px] rounded-lg touch-manipulation active:scale-95 transition-all flex flex-col items-center justify-center gap-0.5 ${
-                  saveStatus === 'saving' ? 'bg-destructive/50 cursor-wait' : saveStatus === 'success' ? 'bg-green-600' : saveStatus === 'error' ? 'bg-red-600' : 'bg-destructive/10 text-destructive active:bg-destructive/20'
+                className={`flex-1 py-2.5 rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center gap-1 text-xs font-medium ${
+                  saveStatus === 'saving' ? 'bg-destructive/50 cursor-wait' : saveStatus === 'success' ? 'bg-green-600 text-white' : saveStatus === 'error' ? 'bg-red-600 text-white' : 'bg-destructive/10 text-destructive active:bg-destructive/20'
                 }`}
                 title="Not an Ad"
               >
-                <X className="w-4 h-4" />
-                <span className="text-[10px] font-medium">Not Ad</span>
+                <X className="w-3.5 h-3.5" />
+                Not Ad
               </button>
               <button
                 onClick={handleReset}
                 disabled={saveStatus === 'saving'}
-                className="p-2 min-w-[56px] min-h-[56px] rounded-lg bg-muted touch-manipulation active:scale-95 active:bg-accent transition-all flex flex-col items-center justify-center gap-0.5 disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-lg bg-muted touch-manipulation active:scale-95 active:bg-accent transition-all flex items-center justify-center gap-1 text-xs font-medium disabled:opacity-50"
                 title="Reset"
               >
-                <RotateCcw className="w-4 h-4" />
-                <span className="text-[10px] font-medium">Reset</span>
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={saveStatus === 'saving'}
-                className={`p-2 min-w-[56px] min-h-[56px] rounded-lg touch-manipulation active:scale-95 transition-all flex flex-col items-center justify-center gap-0.5 ${
+                className={`flex-1 py-2.5 rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center gap-1 text-xs font-medium ${
                   saveStatus === 'saving' ? 'bg-green-600/50 cursor-wait' : saveStatus === 'success' ? 'bg-green-600' : saveStatus === 'error' ? 'bg-red-600' : 'bg-green-600 text-white active:bg-green-700'
                 }`}
                 title="Confirm"
               >
-                <Check className="w-4 h-4" />
-                <span className="text-[10px] font-medium">Confirm</span>
+                <Check className="w-3.5 h-3.5" />
+                Confirm
               </button>
               <button
                 onClick={handleSave}
                 disabled={saveStatus === 'saving'}
-                className={`p-2 min-w-[56px] min-h-[56px] rounded-lg touch-manipulation active:scale-95 transition-all flex flex-col items-center justify-center gap-0.5 ${
-                  saveStatus === 'saving' ? 'bg-primary/50 cursor-wait' : saveStatus === 'success' ? 'bg-green-600' : saveStatus === 'error' ? 'bg-red-600' : 'bg-primary text-primary-foreground active:bg-primary/90'
+                className={`flex-1 py-2.5 rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center gap-1 text-xs font-medium ${
+                  saveStatus === 'saving' ? 'bg-primary/50 cursor-wait' : saveStatus === 'success' ? 'bg-green-600 text-white' : saveStatus === 'error' ? 'bg-red-600 text-white' : 'bg-primary text-primary-foreground active:bg-primary/90'
                 }`}
                 title="Save Adjusted"
               >
-                <Save className="w-4 h-4" />
-                <span className="text-[10px] font-medium">Save</span>
+                <Save className="w-3.5 h-3.5" />
+                Save
               </button>
             </div>
           </div>
@@ -900,10 +907,10 @@ export function AdEditor({
             </div>
 
             {/* Time controls in expanded mode */}
-            <div className="flex items-center justify-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Start</span>
-                <div className="flex items-center rounded-md border border-border overflow-hidden">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 flex items-center gap-1.5">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex-shrink-0">Start</span>
+                <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden">
                   <button
                     onClick={() => {
                       const newAdj = startAdjustment - 1;
@@ -912,12 +919,12 @@ export function AdEditor({
                       setAdjustedStart(newStart);
                       triggerHaptic();
                     }}
-                    className="p-2 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center transition-all text-muted-foreground"
+                    className="px-3 py-2.5 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center transition-all text-foreground"
                     aria-label="Decrease start adjustment"
                   >
-                    <Minus className="w-3.5 h-3.5" />
+                    <Minus className="w-4 h-4" />
                   </button>
-                  <div className="relative flex items-center border-x border-border">
+                  <div className="relative flex-1 flex items-center justify-center border-x border-border/40">
                     <input
                       type="number"
                       value={startAdjustment}
@@ -927,10 +934,10 @@ export function AdEditor({
                         const newStart = Math.max(0, (selectedAd?.start || 0) + val);
                         setAdjustedStart(newStart);
                       }}
-                      className="w-10 text-center text-sm font-mono bg-transparent pr-2.5 py-1 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-full text-center text-sm font-mono font-medium bg-transparent py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       step="1"
                     />
-                    <span className="absolute right-0.5 text-[10px] text-muted-foreground pointer-events-none">s</span>
+                    <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>
                   </div>
                   <button
                     onClick={() => {
@@ -940,16 +947,16 @@ export function AdEditor({
                       setAdjustedStart(newStart);
                       triggerHaptic();
                     }}
-                    className="p-2 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center transition-all text-muted-foreground"
+                    className="px-3 py-2.5 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center transition-all text-foreground"
                     aria-label="Increase start adjustment"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">End</span>
-                <div className="flex items-center rounded-md border border-border overflow-hidden">
+              <div className="flex-1 flex items-center gap-1.5">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex-shrink-0">End</span>
+                <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden">
                   <button
                     onClick={() => {
                       const newAdj = endAdjustment - 1;
@@ -959,12 +966,12 @@ export function AdEditor({
                       setAdjustedEnd(newEnd);
                       triggerHaptic();
                     }}
-                    className="p-2 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center transition-all text-muted-foreground"
+                    className="px-3 py-2.5 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center transition-all text-foreground"
                     aria-label="Decrease end adjustment"
                   >
-                    <Minus className="w-3.5 h-3.5" />
+                    <Minus className="w-4 h-4" />
                   </button>
-                  <div className="relative flex items-center border-x border-border">
+                  <div className="relative flex-1 flex items-center justify-center border-x border-border/40">
                     <input
                       type="number"
                       value={endAdjustment}
@@ -975,10 +982,10 @@ export function AdEditor({
                         const newEnd = Math.min(maxEnd, (selectedAd?.end || 0) + val);
                         setAdjustedEnd(newEnd);
                       }}
-                      className="w-10 text-center text-sm font-mono bg-transparent pr-2.5 py-1 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-full text-center text-sm font-mono font-medium bg-transparent py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       step="1"
                     />
-                    <span className="absolute right-0.5 text-[10px] text-muted-foreground pointer-events-none">s</span>
+                    <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>
                   </div>
                   <button
                     onClick={() => {
@@ -989,10 +996,10 @@ export function AdEditor({
                       setAdjustedEnd(newEnd);
                       triggerHaptic();
                     }}
-                    className="p-2 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center transition-all text-muted-foreground"
+                    className="px-3 py-2.5 active:bg-accent/80 active:scale-95 touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center transition-all text-foreground"
                     aria-label="Increase end adjustment"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
