@@ -8,11 +8,11 @@ info:
     This API allows you to:
     - Manage podcast feed subscriptions
     - View and manage processed episodes
-    - Configure ad detection settings including Claude model selection
+    - Configure ad detection settings including AI model selection
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.0.27
+  version: 1.0.28
   contact:
     name: MinusPod
   license:
@@ -596,8 +596,8 @@ paths:
       description: |
         Deletes all cached data (audio, transcript, ads) and reprocesses the episode.
         Supports two modes:
-        - `reprocess` (default): Uses learned patterns from the pattern database plus Claude analysis
-        - `full`: Skips the pattern database entirely for a fresh Claude-only analysis
+        - `reprocess` (default): Uses learned patterns from the pattern database plus AI analysis
+        - `full`: Skips the pattern database entirely for a fresh AI-only analysis
 
         Reprocessed episodes are prioritized in the processing queue.
       operationId: reprocessEpisode
@@ -617,8 +617,8 @@ paths:
                   default: reprocess
                   description: |
                     Processing mode:
-                    - reprocess: Use pattern DB + Claude (leverages learned patterns)
-                    - full: Claude only, skip pattern DB (fresh analysis)
+                    - reprocess: Use pattern DB + AI (leverages learned patterns)
+                    - full: AI only, skip pattern DB (fresh analysis)
       responses:
         '200':
           description: Episode reprocessing started
@@ -712,8 +712,8 @@ paths:
                   default: reprocess
                   description: |
                     Processing mode:
-                    - reprocess: Use pattern DB + Claude (leverages learned patterns)
-                    - full: Claude only, skip pattern DB (fresh analysis)
+                    - reprocess: Use pattern DB + AI (leverages learned patterns)
+                    - full: AI only, skip pattern DB (fresh analysis)
       responses:
         '200':
           description: Episodes queued for reprocessing
@@ -2031,7 +2031,7 @@ paths:
       tags:
         - Settings
       summary: Update ad detection settings
-      description: Update Claude model, system prompt, or multi-pass detection
+      description: Update AI model, system prompt, or multi-pass detection
       operationId: updateAdDetectionSettings
       requestBody:
         required: true
@@ -2042,17 +2042,17 @@ paths:
               properties:
                 systemPrompt:
                   type: string
-                  description: System prompt for Claude ad detection (first pass)
+                  description: System prompt for AI ad detection (first pass)
                 verificationPrompt:
                   type: string
                   description: System prompt for verification pass (post-cut re-detection of missed ads)
                 claudeModel:
                   type: string
-                  description: Claude model ID to use for first pass ad detection
+                  description: AI model ID to use for first pass ad detection
                   example: claude-sonnet-4-5-20250929
                 verificationModel:
                   type: string
-                  description: Claude model ID for verification pass (can differ from first pass)
+                  description: AI model ID for verification pass (can differ from first pass)
                   example: claude-sonnet-4-5-20250929
                 chaptersModel:
                   type: string
@@ -2125,8 +2125,8 @@ paths:
     get:
       tags:
         - Settings
-      summary: Get available Claude models
-      description: Returns list of available Claude models for ad detection
+      summary: Get available AI models
+      description: Returns list of available AI models for ad detection
       operationId: getAvailableModels
       responses:
         '200':
@@ -2591,7 +2591,7 @@ components:
               description: Confidence after position/content adjustments (0.0 to 1.0)
             original_confidence:
               type: number
-              description: Original confidence from Claude detection
+              description: Original confidence from AI detection
             flags:
               type: array
               items:

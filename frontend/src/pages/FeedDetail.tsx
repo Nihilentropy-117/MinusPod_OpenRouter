@@ -313,7 +313,7 @@ function FeedDetail() {
                     }}
                     className="w-full px-4 py-2 text-left hover:bg-accent transition-colors rounded-t-lg"
                   >
-                    <span className="block text-sm font-medium text-foreground">Patterns + Claude</span>
+                    <span className="block text-sm font-medium text-foreground">Patterns + AI</span>
                     <span className="block text-xs text-muted-foreground">Use learned patterns for faster detection</span>
                   </button>
                   <button
@@ -324,7 +324,7 @@ function FeedDetail() {
                     }}
                     className="w-full px-4 py-2 text-left hover:bg-accent transition-colors rounded-b-lg border-t border-border"
                   >
-                    <span className="block text-sm font-medium text-foreground">Claude Only</span>
+                    <span className="block text-sm font-medium text-foreground">AI Only</span>
                     <span className="block text-xs text-muted-foreground">Fresh analysis without patterns</span>
                   </button>
                 </div>
@@ -358,7 +358,7 @@ function FeedDetail() {
               </h2>
               <div className="mb-4 p-3 rounded-lg bg-accent/50">
                 <p className="text-sm font-medium text-foreground">
-                  Mode: {selectedReprocessMode === 'reprocess' ? 'Patterns + Claude' : 'Claude Only'}
+                  Mode: {selectedReprocessMode === 'reprocess' ? 'Patterns + AI' : 'AI Only'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {selectedReprocessMode === 'reprocess'
@@ -399,7 +399,7 @@ function FeedDetail() {
             <div className="p-6">
               <h2 className="text-xl font-semibold text-foreground mb-4">Reprocess Queued</h2>
               <p className="text-xs text-muted-foreground mb-4">
-                Mode: {reprocessResult.mode === 'reprocess' ? 'Patterns + Claude' : 'Claude Only'}
+                Mode: {reprocessResult.mode === 'reprocess' ? 'Patterns + AI' : 'AI Only'}
               </p>
               <div className="grid grid-cols-2 gap-4 text-center mb-4">
                 <div className="p-3 rounded-lg bg-green-500/10">
@@ -413,7 +413,7 @@ function FeedDetail() {
               </div>
               {reprocessResult.queued > 0 && (
                 <p className="text-sm text-muted-foreground mb-4">
-                  {reprocessResult.queued} episodes have been queued for {reprocessResult.mode === 'reprocess' ? 'pattern-assisted' : 'full Claude'} reprocessing. They will be processed in the background.
+                  {reprocessResult.queued} episodes have been queued for {reprocessResult.mode === 'reprocess' ? 'pattern-assisted' : 'full AI'} reprocessing. They will be processed in the background.
                 </p>
               )}
               <button

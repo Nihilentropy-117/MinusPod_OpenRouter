@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.28] - 2026-03-01
+
+### Fixed
+- **Ollama model listing 404**: Auto-append `/v1` to `OPENAI_BASE_URL` when `LLM_PROVIDER=ollama` and the URL doesn't already end with `/v1`. Fixes 404 errors on model listing and chat completions (`GET /models` -> `GET /v1/models`).
+- **Ollama native fallback**: Added `_try_ollama_native_list()` method that queries Ollama's native `/api/tags` endpoint as a fallback when the OpenAI-compatible `/v1/models` endpoint fails. Used in both model listing and connection verification.
+
+### Changed
+- **Generic LLM naming in UI**: Replaced all user-facing "Claude" references with "AI" in Settings page ("AI Model"), EpisodeDetail reprocess buttons ("Patterns + AI", "Skip patterns, AI only"), and FeedDetail reprocess menus/modals.
+- **Generic LLM naming in API docs**: Updated OpenAPI spec to use "AI model" / "AI analysis" instead of "Claude" in descriptions for model selection, reprocess modes, settings, and confidence fields. Example model values kept as-is.
+
 ## [1.0.27] - 2026-03-01
 
 ### Added

@@ -322,6 +322,9 @@ class OpenAICompatibleClient(LLMClient):
             return models if models else self._get_fallback_models()
         except Exception as e:
             logger.warning(f"Could not fetch models from OpenAI-compatible API: {e}")
+            native = self._try_ollama_native_list()
+            if native:
+                return native
             return self._get_fallback_models()
 
     def _get_fallback_models(self) -> List[LLMModel]:
@@ -352,8 +355,42 @@ class OpenAICompatibleClient(LLMClient):
             logger.info(f"LLM endpoint verified: {self.base_url} ({len(models)} models available)")
             return True
         except Exception as e:
+            logger.warning(f"OpenAI-compatible model list failed: {self.base_url} - {e}")
+            native = self._try_ollama_native_list()
+            if native:
+                logger.info(f"LLM endpoint verified via Ollama native API ({len(native)} models)")
+                return True
             logger.error(f"LLM endpoint verification failed: {self.base_url} - {e}")
             return False
+
+    def _try_ollama_native_list(self) -> List[LLMModel]:
+        """Try Ollama's native /api/tags endpoint as a fallback for model listing.
+
+        Strips /v1 from self.base_url to derive the Ollama root, then queries
+        GET {root}/api/tags. Returns a list of LLMModel on success, empty list
+        on any failure.
+        """
+        root = self.base_url.rstrip('/')
+        if root.endswith('/v1'):
+            root = root[:-3]
+
+        url = f"{root}/api/tags"
+        try:
+            import httpx
+            resp = httpx.get(url, timeout=10.0)
+            resp.raise_for_status()
+            data = resp.json()
+            models = []
+            for entry in data.get('models', []):
+                name = entry.get('name', '')
+                if name:
+                    models.append(LLMModel(id=name, name=name))
+            if models:
+                logger.info(f"Ollama native /api/tags returned {len(models)} models")
+            return models
+        except Exception as e:
+            logger.debug(f"Ollama native /api/tags fallback failed: {e}")
+            return []
 
 
 # =============================================================================
@@ -459,7 +496,11 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
     if provider == 'anthropic':
         _cached_client = AnthropicClient()
     elif provider in ('openai-compatible', 'openai', 'wrapper', 'ollama'):
-        _cached_client = OpenAICompatibleClient()
+        base_url = os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
+        if provider == 'ollama' and not base_url.rstrip('/').endswith('/v1'):
+            base_url = base_url.rstrip('/') + '/v1'
+            logger.info(f"Ollama provider: normalized base_url to {base_url}")
+        _cached_client = OpenAICompatibleClient(base_url=base_url)
     else:
         logger.warning(f"Unknown LLM_PROVIDER '{provider}', defaulting to anthropic")
         _cached_client = AnthropicClient()
@@ -499,6 +540,8 @@ def verify_llm_connection() -> bool:
 
     if provider in ('openai-compatible', 'openai', 'wrapper', 'ollama'):
         base_url = os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
+        if provider == 'ollama' and not base_url.rstrip('/').endswith('/v1'):
+            base_url = base_url.rstrip('/') + '/v1'
         logger.info(f"Verifying LLM endpoint: {base_url}")
 
         try:

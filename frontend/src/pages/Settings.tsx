@@ -517,7 +517,7 @@ function Settings() {
       <div className="bg-card rounded-lg border border-border p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Audio Analysis</h2>
         <p className="text-sm text-muted-foreground">
-          Volume and transition analysis runs automatically on every episode. Detects volume anomalies and abrupt loudness transitions that indicate dynamically inserted ads. Audio signals are included as context in Claude's detection prompt.
+          Volume and transition analysis runs automatically on every episode. Detects volume anomalies and abrupt loudness transitions that indicate dynamically inserted ads. Audio signals are included as context in the AI detection prompt.
         </p>
       </div>
 
@@ -574,7 +574,7 @@ function Settings() {
       </div>
 
       <div className="bg-card rounded-lg border border-border p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Claude Model</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">AI Model</h2>
         <div>
           <label htmlFor="model" className="block text-sm font-medium text-foreground mb-2">
             Model for Ad Detection
@@ -592,7 +592,7 @@ function Settings() {
             ))}
           </select>
           <p className="mt-1 text-sm text-muted-foreground">
-            Select which Claude model to use for analyzing transcripts
+            Select which AI model to use for analyzing transcripts
           </p>
         </div>
       </div>
@@ -709,7 +709,7 @@ function Settings() {
             className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
           />
           <p className="mt-1 text-sm text-muted-foreground">
-            Instructions sent to Claude for the initial ad detection pass
+            Instructions sent to the AI model for the initial ad detection pass
           </p>
         </div>
 

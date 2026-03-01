@@ -226,18 +226,18 @@ function EpisodeDetail() {
                     <button
                       onClick={() => reprocessMutation.mutate('reprocess')}
                       className="w-full px-3 py-2 text-left text-sm hover:bg-accent rounded-t-lg"
-                      title="Use learned patterns + Claude analysis"
+                      title="Use learned patterns + AI analysis"
                     >
                       <div className="font-medium">Reprocess</div>
-                      <div className="text-xs text-muted-foreground">Use patterns + Claude</div>
+                      <div className="text-xs text-muted-foreground">Use patterns + AI</div>
                     </button>
                     <button
                       onClick={() => reprocessMutation.mutate('full')}
                       className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border ${!episode.transcriptVttAvailable ? 'rounded-b-lg' : ''}`}
-                      title="Skip pattern DB, Claude analyzes everything fresh"
+                      title="Skip pattern DB, AI analyzes everything fresh"
                     >
                       <div className="font-medium">Full Analysis</div>
-                      <div className="text-xs text-muted-foreground">Skip patterns, Claude only</div>
+                      <div className="text-xs text-muted-foreground">Skip patterns, AI only</div>
                     </button>
                     {episode.transcriptVttAvailable && (
                       <button
