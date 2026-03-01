@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.24] - 2026-03-01
+
+### Changed
+- **Updated README**: Renamed "Transcript Editor" section to "Ad Editor" with updated feature descriptions covering time adjustment controls, reason panel, pill selector, and audio auto-seek. Removed outdated transcript-specific features (swipe gestures, double-tap/long-press boundary setting).
+- **Refreshed all screenshots**: Recaptured all 15 desktop and mobile screenshots from the live server reflecting the current UI with MinusPod logo, updated ad editor layout, and new time controls.
+
 ## [1.0.23] - 2026-03-01
 
 ### Fixed
