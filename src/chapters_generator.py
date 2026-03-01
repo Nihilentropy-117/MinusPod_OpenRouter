@@ -16,9 +16,22 @@ logger = logging.getLogger(__name__)
 # Minimum chapter duration in seconds (3 minutes)
 MIN_CHAPTER_DURATION = 180.0
 
-# Model used for chapter generation tasks (titles, topic detection, splitting).
+# Default model for chapter generation tasks (titles, topic detection, splitting).
 # Uses Haiku for cost efficiency -- these are simple classification/generation tasks.
 CHAPTERS_MODEL = "claude-haiku-4-5-20251001"
+
+
+def get_chapters_model() -> str:
+    """Get configured chapters model from database or fall back to default."""
+    try:
+        from database import PodcastDatabase
+        db = PodcastDatabase()
+        model = db.get_setting('chapters_model')
+        if model:
+            return model
+    except Exception as e:
+        logger.warning(f"Could not load chapters model from DB: {e}")
+    return CHAPTERS_MODEL
 
 # Patterns to match timestamps in episode descriptions
 TIMESTAMP_PATTERNS = [
@@ -556,7 +569,7 @@ Transcript:
 
         try:
             response = self._llm_client.messages_create(
-                model=CHAPTERS_MODEL,
+                model=get_chapters_model(),
                 max_tokens=400,
                 system="",
                 temperature=0.3,
@@ -626,7 +639,7 @@ Transcript:
 
         try:
             response = self._llm_client.messages_create(
-                model=CHAPTERS_MODEL,
+                model=get_chapters_model(),
                 max_tokens=300,
                 system="",
                 temperature=0.3,
@@ -869,7 +882,7 @@ Transcript:
 
         try:
             response = self._llm_client.messages_create(
-                model=CHAPTERS_MODEL,  # Use Haiku for cost efficiency
+                model=get_chapters_model(),
                 max_tokens=500,
                 system="",
                 temperature=0.3,

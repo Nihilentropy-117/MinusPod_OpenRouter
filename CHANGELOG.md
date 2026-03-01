@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.27] - 2026-03-01
+
+### Added
+- **Configurable chapters model**: Chapter generation no longer hardcodes Haiku. New `chapters_model` DB setting with `get_chapters_model()` function, exposed via Settings API and UI dropdown (visible when chapters are enabled). Defaults to `claude-haiku-4-5-20251001` for Anthropic users; Ollama users can select any available model.
+
+### Changed
+- **Ollama recommended models table**: Updated README table with Qwen 3.5 family models, added "Size on Disk" column, refreshed entries across all VRAM tiers.
+
 ## [1.0.26] - 2026-03-01
 
 ### Fixed

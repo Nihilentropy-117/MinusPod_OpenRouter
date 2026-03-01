@@ -1462,12 +1462,14 @@ def get_settings():
     db = get_database()
     from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT
     from ad_detector import AdDetector, DEFAULT_MODEL
+    from chapters_generator import CHAPTERS_MODEL
 
     settings = db.get_all_settings()
 
     # Get current model settings
     current_model = settings.get('claude_model', {}).get('value', DEFAULT_MODEL)
     verification_model = settings.get('verification_model', {}).get('value', DEFAULT_MODEL)
+    chapters_model = settings.get('chapters_model', {}).get('value', CHAPTERS_MODEL)
 
     # Get whisper model setting (defaults to env var or 'small')
     default_whisper_model = os.environ.get('WHISPER_MODEL', 'small')
@@ -1523,6 +1525,10 @@ def get_settings():
             'value': chapters_enabled,
             'isDefault': settings.get('chapters_enabled', {}).get('is_default', True)
         },
+        'chaptersModel': {
+            'value': chapters_model,
+            'isDefault': settings.get('chapters_model', {}).get('is_default', True)
+        },
         'minCutConfidence': {
             'value': min_cut_confidence,
             'isDefault': settings.get('min_cut_confidence', {}).get('is_default', True)
@@ -1537,6 +1543,7 @@ def get_settings():
             'autoProcessEnabled': True,
             'vttTranscriptsEnabled': True,
             'chaptersEnabled': True,
+            'chaptersModel': CHAPTERS_MODEL,
             'minCutConfidence': 0.80
         }
     })
@@ -1594,6 +1601,10 @@ def update_ad_detection_settings():
         db.set_setting('chapters_enabled', value, is_default=False)
         logger.info(f"Updated chapters generation to: {value}")
 
+    if 'chaptersModel' in data:
+        db.set_setting('chapters_model', data['chaptersModel'], is_default=False)
+        logger.info(f"Updated chapters model to: {data['chaptersModel']}")
+
     if 'minCutConfidence' in data:
         # Clamp to valid range (0.50 - 0.95)
         value = max(0.50, min(0.95, float(data['minCutConfidence'])))
@@ -1616,6 +1627,7 @@ def reset_ad_detection_settings():
     db.reset_setting('whisper_model')
     db.reset_setting('vtt_transcripts_enabled')
     db.reset_setting('chapters_enabled')
+    db.reset_setting('chapters_model')
 
     # Mark whisper model for reload
     try:

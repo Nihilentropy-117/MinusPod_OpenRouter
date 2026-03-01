@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.0.25
+  version: 1.0.27
   contact:
     name: MinusPod
   license:
@@ -2054,6 +2054,10 @@ paths:
                   type: string
                   description: Claude model ID for verification pass (can differ from first pass)
                   example: claude-sonnet-4-5-20250929
+                chaptersModel:
+                  type: string
+                  description: Model for chapter title generation and topic detection (defaults to Haiku for cost efficiency)
+                  example: claude-haiku-4-5-20251001
                 whisperModel:
                   type: string
                   description: Whisper model for transcription (tiny, base, small, medium, large-v3)
@@ -2678,6 +2682,14 @@ components:
               type: string
             isDefault:
               type: boolean
+        chaptersModel:
+          type: object
+          properties:
+            value:
+              type: string
+              description: Model for chapter title generation and topic detection
+            isDefault:
+              type: boolean
         whisperModel:
           type: object
           properties:
@@ -2715,6 +2727,8 @@ components:
             claudeModel:
               type: string
             verificationModel:
+              type: string
+            chaptersModel:
               type: string
             whisperModel:
               type: string

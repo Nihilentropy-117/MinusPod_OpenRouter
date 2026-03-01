@@ -1887,6 +1887,7 @@ class Database:
         """Reset a setting to its default value."""
         # Import here to avoid circular import
         from ad_detector import DEFAULT_MODEL
+        from chapters_generator import CHAPTERS_MODEL
 
         defaults = {
             'system_prompt': DEFAULT_SYSTEM_PROMPT,
@@ -1896,7 +1897,8 @@ class Database:
             'verification_model': DEFAULT_MODEL,
             'whisper_model': os.environ.get('WHISPER_MODEL', 'small'),
             'vtt_transcripts_enabled': 'true',
-            'chapters_enabled': 'true'
+            'chapters_enabled': 'true',
+            'chapters_model': CHAPTERS_MODEL
         }
 
         if key in defaults:

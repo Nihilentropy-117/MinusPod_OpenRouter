@@ -38,6 +38,7 @@ function Settings() {
   const [audioBitrate, setAudioBitrate] = useState('128k');
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(true);
   const [chaptersEnabled, setChaptersEnabled] = useState(true);
+  const [chaptersModel, setChaptersModel] = useState('');
   const [minCutConfidence, setMinCutConfidence] = useState(0.80);
   const [hasChanges, setHasChanges] = useState(false);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
@@ -88,6 +89,7 @@ function Settings() {
       setAudioBitrate(settings.audioBitrate?.value || '128k');
       setVttTranscriptsEnabled(settings.vttTranscriptsEnabled?.value ?? true);
       setChaptersEnabled(settings.chaptersEnabled?.value ?? true);
+      setChaptersModel(settings.chaptersModel?.value || '');
       setMinCutConfidence(settings.minCutConfidence?.value ?? 0.80);
     }
   }, [settings]);
@@ -104,10 +106,11 @@ function Settings() {
         audioBitrate !== (settings.audioBitrate?.value || '128k') ||
         vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? true) ||
         chaptersEnabled !== (settings.chaptersEnabled?.value ?? true) ||
+        chaptersModel !== (settings.chaptersModel?.value || '') ||
         minCutConfidence !== (settings.minCutConfidence?.value ?? 0.80);
       setHasChanges(changed);
     }
-  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, minCutConfidence, settings]);
+  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -121,6 +124,7 @@ function Settings() {
         audioBitrate,
         vttTranscriptsEnabled,
         chaptersEnabled,
+        chaptersModel,
         minCutConfidence,
       }),
     onSuccess: () => {
@@ -664,6 +668,29 @@ function Settings() {
               Create JSON chapters from ad boundaries and description timestamps
             </p>
           </div>
+
+          {chaptersEnabled && (
+            <div className="ml-14">
+              <label htmlFor="chaptersModel" className="block text-sm font-medium text-foreground mb-2">
+                Chapters Model
+              </label>
+              <select
+                id="chaptersModel"
+                value={chaptersModel}
+                onChange={(e) => setChaptersModel(e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {models?.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {formatModelLabel(model)}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Model for chapter title generation and topic detection (smaller/cheaper models work well)
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

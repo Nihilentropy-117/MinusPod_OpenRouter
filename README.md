@@ -280,6 +280,7 @@ All configuration is managed through the web UI or REST API. No config files nee
 Customize ad detection in Settings:
 - **Claude Model** - Model for first pass ad detection
 - **Verification Model** - Separate model for the post-cut verification pass
+- **Chapters Model** - Model for chapter generation (defaults to Haiku for cost efficiency)
 - **System Prompts** - Customizable prompts for first pass and verification detection
 
 ## Finding Podcast RSS Feeds
@@ -399,18 +400,18 @@ Choose based on your available VRAM. **Stay within your VRAM limit** -- a model 
 
 Use `Q4_K_M` quantization as your default. Use `Q5_K_M` if you have headroom -- it offers better output quality for a modest increase in VRAM.
 
-| VRAM | Model | Quantization | Notes |
-|------|-------|-------------|-------|
-| 4-6GB | `qwen3:4b` | Q4_K_M | Minimum viable. JSON reliability is marginal -- expect occasional failures. |
-| 4-6GB | `phi4-mini` | Q4_K_M | Efficient alternative at this tier. |
-| 8GB | `qwen3:8b` | Q4_K_M | **Recommended entry-level.** Strong instruction following for its size. |
-| 8GB | `llama3.1:8b` | Q4_K_M | Solid fallback with large community support and 128K context window. |
-| 12GB | `qwen3:14b` | Q4_K_M | Best quality-to-VRAM ratio at this tier. |
-| 12GB | `ministral-3:14b` | Q4_K_M | Fast inference, good JSON reliability. |
-| 16GB | `qwen3:14b` | Q5_K_M | **Overall recommended model.** Higher quality quant fits cleanly at 16GB. |
-| 16GB | `gpt-oss:20b` | Q4_K_M | Fastest inference at this tier if throughput matters more than quality. |
-| 24GB+ | `qwen3:32b` | Q4_K_M | Best local option below 70B for complex host-read ad detection. |
-| 24GB+ | `mistral-small:22b` | Q8 | Full quality, strong language understanding. |
+| VRAM | Model | Quantization | Size on Disk | Notes |
+|------|-------|-------------|-------------|-------|
+| 4-6GB | `qwen3:4b` | Q4_K_M | 2.5GB | Minimum viable. JSON reliability is marginal -- expect occasional failures. |
+| 4-6GB | `phi4-mini` | Q4_K_M | ~3GB | Efficient alternative at this tier. |
+| 8GB | `qwen3:8b` | Q4_K_M | 5.2GB | **Recommended entry-level.** Strong instruction following for its size. |
+| 12GB | `qwen3:14b` | Q4_K_M | 9.3GB | Best quality-to-VRAM ratio at this tier. |
+| 12GB | `ministral-3:14b` | Q4_K_M | 13GB | Fast inference, good JSON reliability. |
+| 16GB | `qwen3:14b` | Q5_K_M | ~11GB | **Overall recommended.** Higher quality quant fits cleanly. |
+| 16GB | `qwen3:30b` | Q4_K_M | 19GB | MoE -- only 3B active params, faster than size suggests. |
+| 24GB | `qwen3.5:27b` | Q4_K_M | 17GB | Latest generation. 256K context, multimodal. |
+| 24GB | `qwen3.5:35b` | Q4_K_M | 24GB | Best quality under 40GB. 256K context. |
+| 40GB+ | `qwen3.5:122b` | Q4_K_M | 81GB | Closest open-weights match to Claude Sonnet quality. |
 
 > **Recommendation across all tiers:** The Qwen3 family currently offers the most consistent JSON output and instruction following of any open-weights model family. It is the safest choice for MinusPod's structured detection pipeline.
 
