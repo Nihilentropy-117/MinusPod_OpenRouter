@@ -6,7 +6,7 @@ import time
 import random
 from typing import List, Dict, Optional
 from llm_client import (
-    get_llm_client, get_api_key, LLMClient, FALLBACK_MODELS,
+    get_llm_client, get_api_key, LLMClient,
     is_retryable_error, is_rate_limit_error,
     get_llm_timeout, get_llm_max_retries
 )
@@ -1088,10 +1088,8 @@ class AdDetector:
             ]
             return self._ensure_configured_models_present(model_list)
         except Exception as e:
-            logger.warning(f"Could not fetch models from API: {e}")
-            return [
-                {'id': m.id, 'name': m.name} for m in FALLBACK_MODELS
-            ]
+            logger.error(f"Could not fetch models from API: {e}")
+            return []
 
     def _ensure_configured_models_present(self, models_list: List[Dict]) -> List[Dict]:
         """Ensure currently-configured models always appear in the model list.

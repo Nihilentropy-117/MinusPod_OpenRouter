@@ -6,6 +6,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.34] - 2026-03-02
+
+### Added
+- **Runtime LLM provider switching**: `LLM_PROVIDER` and `OPENAI_BASE_URL` are now stored in the database and configurable via the settings UI. No container restart required to switch between Anthropic, Ollama, or OpenAI-compatible providers.
+- **LLM Provider settings section**: New "LLM Provider" section in settings with provider dropdown, base URL input (for non-Anthropic), and API key status badge.
+- **Model refresh endpoint**: `POST /api/v1/settings/models/refresh` forces a fresh model list fetch from the active provider. Refresh button added to AI Models section header.
+- **Empty models warning**: Yellow banner in AI Models section when the provider returns no models, guiding users to check configuration.
+- **LLM I/O logging**: New `podcast.llm_io` logger captures full request/response data at DEBUG level and metadata (model, token counts, response length) at INFO level. Uses intelligent truncation (head 80% + tail 20%) for large content.
+- **Collapsible settings sections**: Settings page redesigned with 10 collapsible sections (persisted to localStorage). Reduces visual clutter and improves mobile usability.
+- **Sticky save bar**: Save/Reset buttons now appear in a fixed bottom bar when changes are pending, always reachable regardless of scroll position.
+
+### Changed
+- **Settings page consolidation**: Merged 12 separate cards into 10 collapsible sections. AI Model, Verification Pass, and Chapters Model merged into single "AI Models" section. Audio Output Quality and Audio Analysis merged into "Audio" section. Ad Detection Aggressiveness and Auto-Process merged into "Ad Detection" section.
+- **Responsive prompt textareas**: Reduced from 12 rows to 6 on mobile for better viewport utilization.
+- **Provider reads centralized**: All `os.environ.get('LLM_PROVIDER')` calls replaced with `get_effective_provider()` which checks DB first with 5s TTL cache. Same for base URL via `get_effective_base_url()`.
+
+### Removed
+- **Fallback models list**: `FALLBACK_MODELS` hardcoded list removed from `llm_client.py`. Both `AnthropicClient` and `OpenAICompatibleClient` now return empty lists on API failure instead of stale fallbacks, making provider misconfiguration immediately visible.
+
 ## [1.0.33] - 2026-03-01
 
 ### Fixed

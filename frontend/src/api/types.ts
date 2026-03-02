@@ -106,6 +106,9 @@ export interface Settings {
   chaptersEnabled: SettingValueBoolean;
   chaptersModel: SettingValue;
   minCutConfidence: SettingValueNumber;
+  llmProvider: SettingValue;
+  openaiBaseUrl: SettingValue;
+  apiKeyConfigured: boolean;
   retentionPeriodMinutes: number;
   defaults: {
     systemPrompt: string;
@@ -118,6 +121,8 @@ export interface Settings {
     chaptersEnabled: boolean;
     chaptersModel: string;
     minCutConfidence: number;
+    llmProvider: string;
+    openaiBaseUrl: string;
   };
 }
 
@@ -133,6 +138,8 @@ export interface UpdateSettingsPayload {
   chaptersEnabled?: boolean;
   chaptersModel?: string;
   minCutConfidence?: number;
+  llmProvider?: string;
+  openaiBaseUrl?: string;
 }
 
 export interface ClaudeModel {
