@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.39] - 2026-03-05
+
+### Fixed
+- **Silent worker death causing orphan-retry-exhaustion loop**: Episodes stuck in a death loop where Gunicorn SIGKILL (due to default 30s timeout) killed workers mid-processing, orphan detection incremented retry count, and after 3 cycles episodes were marked permanently_failed despite never truly failing.
+- **Gunicorn timeout too short**: Added explicit `--timeout 600` (10min heartbeat) and `--graceful-timeout 330` (5min+30s buffer for graceful shutdown) to prevent premature SIGKILL during long audio processing.
+- **graceful_shutdown blocking heartbeats**: Signal handler no longer blocks in a sleep loop waiting for processing to finish. Sets shutdown_event and returns immediately, letting Gunicorn's graceful-timeout manage the lifecycle.
+- **Orphan resets penalizing retry count**: Both `reset_stuck_processing_episodes` (episodes table) and `reset_orphaned_queue_items` (auto_process_queue) no longer increment retry/attempt counters on orphan detection. Only actual processing failures increment counters.
+- **Uncaught exceptions in _process_episode_background**: The outer `except Exception` handler now calls `_handle_processing_failure` for proper GPU cleanup, retry logic, and error recording instead of just logging.
+- **"permanently failed" log spam**: Warning for permanently failed episodes on the serve route now only logs once per episode per process lifetime (subsequent requests log at DEBUG level).
+- **OpenAPI spec missing `permanently_failed` status**: Added `permanently_failed` to the episode status enum in the `EpisodeSummary` schema and the `listEpisodes` status query parameter filter. Bumped spec version to 1.0.39.
+- **Wasted DB query on every episode processing call**: Moved `db.get_episode()` (3-table JOIN) from the top of `_process_episode_background` into the `except` block where it is actually used, eliminating a redundant query on every happy-path and cancellation-path invocation.
+
 ## [1.0.38] - 2026-03-05
 
 ### Fixed
