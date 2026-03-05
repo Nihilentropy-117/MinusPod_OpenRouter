@@ -3511,7 +3511,9 @@ class Database:
         This catches orphaned queue items where the worker crashed or was killed
         without properly updating the status. Items exceeding max_attempts are
         marked as 'failed' permanently. Items under max_attempts are reset to
-        'pending' with incremented attempts counter.
+        'pending' WITHOUT incrementing attempts -- orphan resets are not failures.
+        Only actual processing failures (in _handle_processing_failure) increment
+        the attempts counter.
 
         Args:
             stuck_minutes: Minutes after which a 'processing' item is considered orphaned
@@ -3536,13 +3538,12 @@ class Database:
         )
         failed_items = cursor.fetchall()
 
-        # Second: Reset items under max attempts, incrementing counter
+        # Second: Reset items under max attempts, NO attempt increment (orphan != failure)
         cursor = conn.execute(
             """UPDATE auto_process_queue
                SET status = 'pending',
-                   attempts = attempts + 1,
                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
-                   error_message = 'Reset after processing timeout'
+                   error_message = 'Reset after worker crash (no attempt penalty)'
                WHERE status = 'processing'
                AND attempts < ?
                AND datetime(updated_at) < datetime('now', ? || ' minutes')
@@ -3555,7 +3556,7 @@ class Database:
         for row in failed_items:
             logger.warning(f"Queue item exceeded max attempts, marking failed: id={row['id']}, episode_id={row['episode_id']}")
         for row in reset_items:
-            logger.info(f"Reset orphaned queue item: id={row['id']}, episode_id={row['episode_id']}")
+            logger.info(f"Reset orphaned queue item (no attempt penalty): id={row['id']}, episode_id={row['episode_id']}")
 
         return len(reset_items), len(failed_items)
 

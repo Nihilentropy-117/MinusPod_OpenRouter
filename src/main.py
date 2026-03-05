@@ -151,6 +151,9 @@ def log_request_detailed(f):
 # Maximum retry attempts for failed episodes before marking as permanently_failed
 MAX_EPISODE_RETRIES = 3
 
+# Track episodes already warned about permanent failure (avoid log spam on repeated requests)
+_permanently_failed_warned = set()
+
 # Cancel primitives (extracted to cancel.py for testability)
 from cancel import ProcessingCancelled, _check_cancel, cancel_processing, _cancel_events, _cancel_events_lock
 
@@ -376,8 +379,10 @@ processing_queue = ProcessingQueue()
 def graceful_shutdown(signum, frame):
     """Handle shutdown signals gracefully.
 
-    Waits for current processing to complete (up to 5 minutes)
-    before exiting.
+    Sets the shutdown event to signal background threads to stop.
+    Does NOT block the signal handler -- Gunicorn's --graceful-timeout (330s)
+    provides the actual wait period before SIGKILL. Blocking here would prevent
+    gthread worker heartbeats, causing premature SIGKILL after --timeout.
     """
     sig_name = signal.Signals(signum).name
     logger.info(f"Received {sig_name} signal, initiating graceful shutdown...")
@@ -385,22 +390,10 @@ def graceful_shutdown(signum, frame):
     # Signal all background threads to stop
     shutdown_event.set()
 
-    # Wait for processing queue to finish current episode (max 5 minutes)
-    max_wait = 300
-    waited = 0
-    while processing_queue.is_busy() and waited < max_wait:
-        current = processing_queue.get_current()
-        if current:
-            logger.info(f"Waiting for processing to complete: {current[0]}:{current[1]} ({waited}s/{max_wait}s)")
-        time.sleep(5)
-        waited += 5
-
-    if processing_queue.is_busy():
-        logger.warning("Shutdown timeout reached, forcing exit with incomplete processing")
-    else:
-        logger.info("All processing complete, shutting down cleanly")
-
-    sys.exit(0)
+    current = processing_queue.get_current()
+    if current:
+        logger.info(f"Shutdown signal sent, processing in progress: {current[0]}:{current[1]}")
+        logger.info("Gunicorn graceful-timeout will allow processing to finish")
 
 # Deduplicate patterns (cleanup duplicate patterns from earlier bugs)
 try:
@@ -815,8 +808,11 @@ def reset_stuck_processing_episodes():
     Only resets episodes that have been processing for longer than 30 minutes
     to avoid killing actively-processing jobs when a worker restarts.
 
-    Tracks retry count and marks episodes as permanently_failed after MAX_EPISODE_RETRIES
-    to prevent infinite retry loops for episodes that consistently crash workers.
+    Does NOT increment retry_count for orphan resets -- infrastructure crashes
+    (SIGKILL, OOM, worker timeout) are not processing failures. Only actual
+    processing errors (via _handle_processing_failure) increment retry_count.
+    Episodes are marked permanently_failed only when retry_count (from real
+    failures) reaches MAX_EPISODE_RETRIES.
     """
     conn = db.get_connection()
     cursor = conn.execute(
@@ -833,36 +829,33 @@ def reset_stuck_processing_episodes():
 
     for row in stuck:
         current_retry_count = row['retry_count'] or 0
-        new_retry_count = current_retry_count + 1
 
-        if new_retry_count >= MAX_EPISODE_RETRIES:
-            # Too many retries - mark as permanently failed
+        if current_retry_count >= MAX_EPISODE_RETRIES:
+            # Already exceeded retries from real failures - mark as permanently failed
             refresh_logger.warning(
-                f"Marking episode as permanently_failed after {new_retry_count} crashes: "
+                f"Marking episode as permanently_failed (retry_count={current_retry_count}): "
                 f"{row['slug']}/{row['episode_id']}"
             )
             conn.execute(
                 """UPDATE episodes SET
                    status = 'permanently_failed',
-                   retry_count = ?,
-                   error_message = 'Exceeded retry limit after repeated processing crashes'
+                   error_message = 'Exceeded retry limit after repeated processing failures'
                    WHERE id = ?""",
-                (new_retry_count, row['id'])
+                (row['id'],)
             )
             failed_count += 1
         else:
-            # Still have retries left - reset to pending
-            refresh_logger.warning(
-                f"Resetting stuck episode (attempt {new_retry_count}/{MAX_EPISODE_RETRIES}): "
+            # Reset to pending without incrementing retry_count (orphan != failure)
+            refresh_logger.info(
+                f"Resetting stuck episode (no retry penalty, retry_count={current_retry_count}): "
                 f"{row['slug']}/{row['episode_id']}"
             )
             conn.execute(
                 """UPDATE episodes SET
                    status = 'pending',
-                   retry_count = ?,
-                   error_message = 'Reset after restart (retry attempt)'
+                   error_message = 'Reset after worker crash (no retry penalty)'
                    WHERE id = ?""",
-                (new_retry_count, row['id'])
+                (row['id'],)
             )
             reset_count += 1
 
@@ -878,6 +871,7 @@ def reset_stuck_processing_episodes():
 def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None, cancel_event=None):
     """Background thread wrapper for process_episode with queue management."""
     queue = ProcessingQueue()
+    start_time = time.time()
     try:
         process_episode(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at, cancel_event=cancel_event)
     except ProcessingCancelled:
@@ -893,7 +887,16 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
             audio_logger.warning(f"[{slug}:{episode_id}] Failed to reset status after cancel: {db_err}")
         status_service.complete_job()
     except Exception as e:
+        # This outer handler only fires if process_episode's own error handling
+        # raises (e.g., DB unreachable during _handle_processing_failure).
+        # It's a best-effort retry of failure bookkeeping.
         audio_logger.error(f"[{slug}:{episode_id}] Background processing failed: {e}")
+        try:
+            episode_data = db.get_episode(slug, episode_id)
+            _handle_processing_failure(slug, episode_id, title, podcast_name,
+                                       episode_data, e, start_time)
+        except Exception as handler_err:
+            audio_logger.error(f"[{slug}:{episode_id}] Failed to handle failure: {handler_err}")
     finally:
         queue.release()
         with _cancel_events_lock:
@@ -1734,7 +1737,12 @@ def serve_episode(slug, episode_id):
             status = None
 
     elif status == 'permanently_failed':
-        feed_logger.warning(f"[{slug}:{episode_id}] Episode permanently failed, not retrying")
+        ep_key = f"{slug}:{episode_id}"
+        if ep_key not in _permanently_failed_warned:
+            _permanently_failed_warned.add(ep_key)
+            feed_logger.warning(f"[{ep_key}] Episode permanently failed, not retrying")
+        else:
+            feed_logger.debug(f"[{ep_key}] Episode permanently failed (already warned)")
         return Response(
             "Episode processing has permanently failed after multiple attempts",
             status=410  # Gone - resource no longer available
