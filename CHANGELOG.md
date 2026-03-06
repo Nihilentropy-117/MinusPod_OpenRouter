@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.40] - 2026-03-06
+
+### Fixed
+- **HEAD requests triggering JIT processing**: Podcast clients (e.g. Pocket Casts) send HEAD requests during feed refresh to probe episode metadata. Flask auto-handles HEAD by running the full GET handler, which triggered the JIT processing pipeline for unprocessed episodes. HEAD requests on unprocessed episodes now proxy upstream audio headers without triggering processing. Completes the fix for #61 (auto-process queue path was fixed in v1.0.37-1.0.39, JIT path was not).
+
+### Changed
+- **Extracted `_get_original_episode_url()` helper**: RSS episode URL lookup factored out of `serve_episode()` for reuse by both HEAD and GET paths.
+
 ## [1.0.39] - 2026-03-05
 
 ### Fixed

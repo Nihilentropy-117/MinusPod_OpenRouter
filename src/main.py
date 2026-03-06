@@ -158,6 +158,7 @@ _permanently_failed_warned = set()
 from cancel import ProcessingCancelled, _check_cancel, cancel_processing, _cancel_events, _cancel_events_lock
 
 
+import requests
 import requests.exceptions
 from llm_client import is_retryable_error, is_llm_api_error, start_episode_token_tracking, get_episode_token_totals
 
@@ -1703,6 +1704,37 @@ def serve_rss(slug):
         abort(503)
 
 
+def _get_original_episode_url(slug, episode_id, feed_map):
+    """Look up the original audio URL for an episode from the RSS feed."""
+    original_feed = rss_parser.fetch_feed(feed_map[slug]['in'])
+    if not original_feed:
+        return None
+    episodes = rss_parser.extract_episodes(original_feed)
+    for ep in episodes:
+        if ep['id'] == episode_id:
+            return ep['url']
+    return None
+
+
+def _head_upstream(slug, episode_id, original_url):
+    """Proxy a HEAD request to the upstream audio URL."""
+    try:
+        resp = requests.head(original_url, timeout=10, allow_redirects=True,
+                             headers={'User-Agent': 'MinusPod/1.0'})
+        if resp.status_code == 200:
+            proxy_resp = Response('', status=200)
+            proxy_resp.autocorrect_location_header = False
+            for h in ('Content-Type', 'Accept-Ranges'):
+                if h in resp.headers:
+                    proxy_resp.headers[h] = resp.headers[h]
+            if 'Content-Length' in resp.headers:
+                proxy_resp.content_length = int(resp.headers['Content-Length'])
+            return proxy_resp
+    except Exception as e:
+        feed_logger.warning(f"[{slug}:{episode_id}] HEAD upstream failed: {e}")
+    abort(503)
+
+
 @app.route('/episodes/<slug>/<episode_id>.mp3')
 @log_request_detailed
 def serve_episode(slug, episode_id):
@@ -1769,36 +1801,33 @@ def serve_episode(slug, episode_id):
             headers={'Retry-After': '30'}
         )
 
+    # HEAD requests should not trigger processing - proxy upstream headers
+    if request.method == 'HEAD' and status != 'processed':
+        original_url = _get_original_episode_url(slug, episode_id, feed_map)
+        if original_url:
+            return _head_upstream(slug, episode_id, original_url)
+        abort(404)
+
     # Need to process - find original URL from RSS
-    cached_rss = storage.get_rss(slug)
-    if not cached_rss:
-        feed_logger.error(f"[{slug}:{episode_id}] No RSS available")
+    original_url = _get_original_episode_url(slug, episode_id, feed_map)
+    if not original_url:
+        feed_logger.error(f"[{slug}:{episode_id}] Episode not found in RSS")
         abort(404)
 
     original_feed = rss_parser.fetch_feed(feed_map[slug]['in'])
-    if not original_feed:
-        feed_logger.error(f"[{slug}:{episode_id}] Could not fetch original RSS")
-        abort(503)
-
     parsed_feed = rss_parser.parse_feed(original_feed)
     podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
 
     episodes = rss_parser.extract_episodes(original_feed)
-    original_url = None
     episode_title = "Unknown"
     episode_description = None
     episode_artwork_url = None
     for ep in episodes:
         if ep['id'] == episode_id:
-            original_url = ep['url']
             episode_title = ep.get('title', 'Unknown')
             episode_description = ep.get('description')
             episode_artwork_url = ep.get('artwork_url')
             break
-
-    if not original_url:
-        feed_logger.error(f"[{slug}:{episode_id}] Episode not found in RSS")
-        abort(404)
 
     # Start background processing (non-blocking)
     started, reason = start_background_processing(
