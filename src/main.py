@@ -104,7 +104,7 @@ refresh_logger = logging.getLogger('podcast.refresh')
 audio_logger = logging.getLogger('podcast.audio')
 
 # Import default confidence threshold from centralized config
-from config import MIN_CUT_CONFIDENCE
+from config import APP_USER_AGENT, MIN_CUT_CONFIDENCE
 
 
 def get_min_cut_confidence() -> float:
@@ -1704,33 +1704,38 @@ def serve_rss(slug):
         abort(503)
 
 
-def _get_original_episode_url(slug, episode_id, feed_map):
-    """Look up the original audio URL for an episode from the RSS feed."""
+def _lookup_episode(slug, episode_id, feed_map):
+    """Fetch the RSS feed once and return episode data + podcast name.
+
+    Returns (episode_dict, podcast_name) or (None, None).
+    episode_dict keys: url, title, description, artwork_url.
+    """
     original_feed = rss_parser.fetch_feed(feed_map[slug]['in'])
     if not original_feed:
-        return None
+        return None, None
+    parsed_feed = rss_parser.parse_feed(original_feed)
+    podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
     episodes = rss_parser.extract_episodes(original_feed)
     for ep in episodes:
         if ep['id'] == episode_id:
-            return ep['url']
-    return None
+            return ep, podcast_name
+    return None, None
 
 
 def _head_upstream(slug, episode_id, original_url):
     """Proxy a HEAD request to the upstream audio URL."""
     try:
         resp = requests.head(original_url, timeout=10, allow_redirects=True,
-                             headers={'User-Agent': 'MinusPod/1.0'})
+                             headers={'User-Agent': APP_USER_AGENT})
         if resp.status_code == 200:
             proxy_resp = Response('', status=200)
-            proxy_resp.autocorrect_location_header = False
             for h in ('Content-Type', 'Accept-Ranges'):
                 if h in resp.headers:
                     proxy_resp.headers[h] = resp.headers[h]
             if 'Content-Length' in resp.headers:
                 proxy_resp.content_length = int(resp.headers['Content-Length'])
             return proxy_resp
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
         feed_logger.warning(f"[{slug}:{episode_id}] HEAD upstream failed: {e}")
     abort(503)
 
@@ -1803,31 +1808,21 @@ def serve_episode(slug, episode_id):
 
     # HEAD requests should not trigger processing - proxy upstream headers
     if request.method == 'HEAD' and status != 'processed':
-        original_url = _get_original_episode_url(slug, episode_id, feed_map)
-        if original_url:
-            return _head_upstream(slug, episode_id, original_url)
+        ep_data, _ = _lookup_episode(slug, episode_id, feed_map)
+        if ep_data:
+            return _head_upstream(slug, episode_id, ep_data['url'])
         abort(404)
 
     # Need to process - find original URL from RSS
-    original_url = _get_original_episode_url(slug, episode_id, feed_map)
-    if not original_url:
+    ep_data, podcast_name = _lookup_episode(slug, episode_id, feed_map)
+    if not ep_data:
         feed_logger.error(f"[{slug}:{episode_id}] Episode not found in RSS")
         abort(404)
 
-    original_feed = rss_parser.fetch_feed(feed_map[slug]['in'])
-    parsed_feed = rss_parser.parse_feed(original_feed)
-    podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
-
-    episodes = rss_parser.extract_episodes(original_feed)
-    episode_title = "Unknown"
-    episode_description = None
-    episode_artwork_url = None
-    for ep in episodes:
-        if ep['id'] == episode_id:
-            episode_title = ep.get('title', 'Unknown')
-            episode_description = ep.get('description')
-            episode_artwork_url = ep.get('artwork_url')
-            break
+    original_url = ep_data['url']
+    episode_title = ep_data.get('title', 'Unknown')
+    episode_description = ep_data.get('description')
+    episode_artwork_url = ep_data.get('artwork_url')
 
     # Start background processing (non-blocking)
     started, reason = start_background_processing(

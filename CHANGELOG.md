@@ -12,7 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HEAD requests triggering JIT processing**: Podcast clients (e.g. Pocket Casts) send HEAD requests during feed refresh to probe episode metadata. Flask auto-handles HEAD by running the full GET handler, which triggered the JIT processing pipeline for unprocessed episodes. HEAD requests on unprocessed episodes now proxy upstream audio headers without triggering processing. Completes the fix for #61 (auto-process queue path was fixed in v1.0.37-1.0.39, JIT path was not).
 
 ### Changed
-- **Extracted `_get_original_episode_url()` helper**: RSS episode URL lookup factored out of `serve_episode()` for reuse by both HEAD and GET paths.
+- **Extracted `_lookup_episode()` helper**: Single RSS fetch+parse returns episode data and podcast name for both HEAD and GET paths, replacing the earlier `_get_original_episode_url()` which caused duplicate RSS fetches on the GET path.
+- **Narrowed exception handling in `_head_upstream()`**: Catches `requests.exceptions.RequestException` instead of bare `Exception`.
+- **Use centralized User-Agent**: `_head_upstream()` uses `APP_USER_AGENT` from config instead of hardcoded string.
 
 ## [1.0.39] - 2026-03-05
 

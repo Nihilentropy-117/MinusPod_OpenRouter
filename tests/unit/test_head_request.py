@@ -8,6 +8,7 @@ import sys
 import tempfile
 import shutil
 import pytest
+import requests.exceptions
 from unittest.mock import patch, MagicMock
 
 # Create temp data dir and set env before any imports that touch /app/data
@@ -25,7 +26,7 @@ database.Database.__init__.__defaults__ = (_test_data_dir,)
 database.Database.__new__.__defaults__ = (_test_data_dir,)
 storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
 
-from main import app, _head_upstream, _get_original_episode_url
+from main import app, _head_upstream, _lookup_episode
 
 
 @pytest.fixture
@@ -51,11 +52,11 @@ class TestHeadRequestDoesNotProcess:
 
     @patch('main.start_background_processing')
     @patch('main._head_upstream')
-    @patch('main._get_original_episode_url', return_value='https://example.com/ep.mp3')
+    @patch('main._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
     @patch('main.db')
     @patch('main.get_feed_map')
     def test_head_unprocessed_proxies_upstream(
-        self, mock_feed_map, mock_db, mock_get_url, mock_head, mock_start,
+        self, mock_feed_map, mock_db, mock_lookup, mock_head, mock_start,
         client, feed_map,
     ):
         mock_feed_map.return_value = feed_map
@@ -74,11 +75,11 @@ class TestHeadRequestDoesNotProcess:
 
     @patch('main.start_background_processing')
     @patch('main._head_upstream')
-    @patch('main._get_original_episode_url', return_value='https://example.com/ep.mp3')
+    @patch('main._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
     @patch('main.db')
     @patch('main.get_feed_map')
     def test_head_failed_episode_proxies_upstream(
-        self, mock_feed_map, mock_db, mock_get_url, mock_head, mock_start,
+        self, mock_feed_map, mock_db, mock_lookup, mock_head, mock_start,
         client, feed_map,
     ):
         mock_feed_map.return_value = feed_map
@@ -94,11 +95,11 @@ class TestHeadRequestDoesNotProcess:
         mock_start.assert_not_called()
 
     @patch('main.start_background_processing')
-    @patch('main._get_original_episode_url', return_value=None)
+    @patch('main._lookup_episode', return_value=(None, None))
     @patch('main.db')
     @patch('main.get_feed_map')
     def test_head_unprocessed_404_when_not_in_rss(
-        self, mock_feed_map, mock_db, mock_get_url, mock_start,
+        self, mock_feed_map, mock_db, mock_lookup, mock_start,
         client, feed_map,
     ):
         mock_feed_map.return_value = feed_map
@@ -139,25 +140,15 @@ class TestGetRequestStillProcesses:
 
     @patch('main.status_service')
     @patch('main.start_background_processing', return_value=(True, None))
-    @patch('main.rss_parser')
-    @patch('main._get_original_episode_url', return_value='https://example.com/ep.mp3')
+    @patch('main._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
     @patch('main.db')
     @patch('main.get_feed_map')
     def test_get_unprocessed_triggers_processing(
-        self, mock_feed_map, mock_db, mock_get_url, mock_rss, mock_start,
+        self, mock_feed_map, mock_db, mock_lookup, mock_start,
         mock_status, client, feed_map,
     ):
         mock_feed_map.return_value = feed_map
         mock_db.get_episode.return_value = None
-
-        mock_parsed = MagicMock()
-        mock_parsed.feed.get.return_value = 'Test Podcast'
-        mock_rss.fetch_feed.return_value = '<rss></rss>'
-        mock_rss.parse_feed.return_value = mock_parsed
-        mock_rss.extract_episodes.return_value = [
-            {'id': 'abc123', 'url': 'https://example.com/ep.mp3',
-             'title': 'Ep 1', 'description': 'desc', 'artwork_url': None},
-        ]
 
         resp = client.get('/episodes/test-pod/abc123.mp3')
 
@@ -189,7 +180,7 @@ class TestHeadUpstreamHelper:
         assert resp.headers['Accept-Ranges'] == 'bytes'
         assert 'X-Other' not in resp.headers
 
-    @patch('main.requests.head', side_effect=Exception('timeout'))
+    @patch('main.requests.head', side_effect=requests.exceptions.ConnectionError('timeout'))
     def test_returns_503_on_upstream_failure(self, mock_head):
         from werkzeug.exceptions import ServiceUnavailable
 
@@ -198,42 +189,52 @@ class TestHeadUpstreamHelper:
                 _head_upstream('slug', 'ep1', 'https://example.com/audio.mp3')
 
 
-class TestGetOriginalEpisodeUrl:
-    """Test _get_original_episode_url helper."""
+class TestLookupEpisode:
+    """Test _lookup_episode helper."""
 
     @patch('main.rss_parser')
-    def test_returns_url_when_found(self, mock_rss):
+    def test_returns_episode_and_podcast_name(self, mock_rss):
         mock_rss.fetch_feed.return_value = '<rss></rss>'
+        mock_parsed = MagicMock()
+        mock_parsed.feed.get.return_value = 'My Podcast'
+        mock_rss.parse_feed.return_value = mock_parsed
         mock_rss.extract_episodes.return_value = [
-            {'id': 'ep1', 'url': 'https://example.com/ep1.mp3'},
-            {'id': 'ep2', 'url': 'https://example.com/ep2.mp3'},
+            {'id': 'ep1', 'url': 'https://example.com/ep1.mp3', 'title': 'Ep 1'},
+            {'id': 'ep2', 'url': 'https://example.com/ep2.mp3', 'title': 'Ep 2'},
         ]
 
         feed_map = {'pod': {'in': 'https://example.com/feed.xml'}}
-        result = _get_original_episode_url('pod', 'ep2', feed_map)
+        ep_data, podcast_name = _lookup_episode('pod', 'ep2', feed_map)
 
-        assert result == 'https://example.com/ep2.mp3'
+        assert ep_data['url'] == 'https://example.com/ep2.mp3'
+        assert ep_data['id'] == 'ep2'
+        assert podcast_name == 'My Podcast'
 
     @patch('main.rss_parser')
-    def test_returns_none_when_not_found(self, mock_rss):
+    def test_returns_none_tuple_when_not_found(self, mock_rss):
         mock_rss.fetch_feed.return_value = '<rss></rss>'
+        mock_parsed = MagicMock()
+        mock_parsed.feed.get.return_value = 'My Podcast'
+        mock_rss.parse_feed.return_value = mock_parsed
         mock_rss.extract_episodes.return_value = [
             {'id': 'ep1', 'url': 'https://example.com/ep1.mp3'},
         ]
 
         feed_map = {'pod': {'in': 'https://example.com/feed.xml'}}
-        result = _get_original_episode_url('pod', 'missing', feed_map)
+        ep_data, podcast_name = _lookup_episode('pod', 'missing', feed_map)
 
-        assert result is None
+        assert ep_data is None
+        assert podcast_name is None
 
     @patch('main.rss_parser')
-    def test_returns_none_when_feed_unavailable(self, mock_rss):
+    def test_returns_none_tuple_when_feed_unavailable(self, mock_rss):
         mock_rss.fetch_feed.return_value = None
 
         feed_map = {'pod': {'in': 'https://example.com/feed.xml'}}
-        result = _get_original_episode_url('pod', 'ep1', feed_map)
+        ep_data, podcast_name = _lookup_episode('pod', 'ep1', feed_map)
 
-        assert result is None
+        assert ep_data is None
+        assert podcast_name is None
 
 
 def teardown_module():
