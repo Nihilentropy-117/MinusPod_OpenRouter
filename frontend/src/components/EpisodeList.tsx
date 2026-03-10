@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Episode } from '../api/types';
 import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS } from '../utils/episodeStatus';
+import Checkbox from './Checkbox';
 
 interface EpisodeListProps {
   episodes: Episode[];
@@ -26,12 +27,10 @@ function EpisodeList({ episodes, feedSlug, selectedIds, onToggle, onSelectAll }:
   return (
     <div className="space-y-2">
       {onSelectAll && selectedIds && (
-        <div className="flex items-center gap-2 px-4 py-2">
-          <input
-            type="checkbox"
-            checked={allSelected}
-            onChange={(e) => onSelectAll(e.target.checked)}
-            className="h-4 w-4 rounded border-border accent-primary"
+        <div className="flex items-center gap-2 pl-3 py-2">
+          <Checkbox
+            checked={!!allSelected}
+            onChange={(checked) => onSelectAll(checked)}
           />
           <span className="text-sm text-muted-foreground">Select all on page</span>
         </div>
@@ -73,43 +72,35 @@ function EpisodeRow({
   const canSelect = episode.status !== 'processing';
 
   return (
-    <div className="flex items-start gap-2">
-      {onToggle && (
-        <div className="pt-4 pl-2 flex-shrink-0">
-          {canSelect ? (
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={() => onToggle(episode.id)}
-              className="h-4 w-4 rounded border-border accent-primary"
-            />
-          ) : (
-            <div className="h-4 w-4" />
-          )}
+    <div className="relative bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
+      {onToggle && canSelect && (
+        <div
+          className="absolute top-3 left-3 z-10"
+          onClick={(e) => e.preventDefault()}
+        >
+          <Checkbox
+            checked={selected}
+            onChange={() => onToggle(episode.id)}
+          />
         </div>
       )}
       <Link
         to={`/feeds/${feedSlug}/episodes/${episode.id}`}
-        className="flex-1 block bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors"
+        className={`block p-4 ${onToggle ? 'pl-10' : ''}`}
       >
-        <div className="flex justify-between items-start gap-4">
-          <div className="min-w-0 flex-1">
-            <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
-            {episode.description && (
-              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                {episode.description.replace(/<[^>]*>/g, '').substring(0, 150)}
-                {episode.description.length > 150 ? '...' : ''}
-              </p>
-            )}
-            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-              <span>{new Date(episode.published).toLocaleDateString()}</span>
-              {episode.duration && <span>{formatDuration(episode.duration)}</span>}
-              {episode.ad_count !== undefined && episode.ad_count > 0 && (
-                <span>{episode.ad_count} ads detected</span>
-              )}
-            </div>
-          </div>
-          <span className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${EPISODE_STATUS_COLORS[episode.status] || 'bg-muted text-muted-foreground'}`}>
+        <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
+        {episode.description && (
+          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+            {episode.description.replace(/<[^>]*>/g, '')}
+          </p>
+        )}
+        <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+          <span>{new Date(episode.published).toLocaleDateString()}</span>
+          {episode.duration && <span>{formatDuration(episode.duration)}</span>}
+          {episode.ad_count !== undefined && episode.ad_count > 0 && (
+            <span>{episode.ad_count} ads detected</span>
+          )}
+          <span className={`px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${EPISODE_STATUS_COLORS[episode.status] || 'bg-muted text-muted-foreground'}`}>
             {EPISODE_STATUS_LABELS[episode.status] || episode.status}
           </span>
         </div>

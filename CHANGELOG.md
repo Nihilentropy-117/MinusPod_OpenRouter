@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Feed history truncated to ~3-4 years**: Hardcoded 100-episode RSS cap raised and made configurable.
 - **Retention deleting discovered episodes**: Retention now skips episodes with no files on disk, eliminating pointless DB churn.
 - **processing_history orphaned by retention**: Episode rows are no longer hard-deleted, so processing_history rows always have a corresponding episode record.
+- **Episode checkboxes outside card boundary on mobile**: Checkboxes now render inside the card at top-left with themed styling matching dark theme. Custom Checkbox component replaces native browser checkboxes.
+- **Inconsistent episode card heights on mobile**: Removed JS `substring(0,150)` truncation that fought CSS `line-clamp-2`. Moved status badge to metadata row to prevent title wrapping.
+- **Edit form (Network/DAI/Feed cap) overflows card on mobile**: Changed to stacked vertical layout with fixed-width labels.
+- **"API Docs" link wraps on narrow Settings page**: Added `whitespace-nowrap` to prevent text breaking.
 
 ## [1.0.40] - 2026-03-06
 

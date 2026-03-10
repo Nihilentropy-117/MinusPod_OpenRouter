@@ -230,13 +230,13 @@ function FeedDetail() {
             {/* Network / DAI Platform info */}
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
               {isEditingNetwork ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    <label className="text-muted-foreground">Network:</label>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-muted-foreground text-sm w-16 flex-shrink-0">Network:</label>
                     <select
                       value={editNetworkOverride}
                       onChange={(e) => setEditNetworkOverride(e.target.value)}
-                      className="px-2 py-1 text-sm bg-secondary border border-border rounded"
+                      className="flex-1 min-w-0 px-2 py-1 text-sm bg-secondary border border-border rounded"
                     >
                       <option value="">Auto-detect</option>
                       {networks?.map((network) => (
@@ -246,18 +246,18 @@ function FeedDetail() {
                       ))}
                     </select>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <label className="text-muted-foreground">DAI:</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-muted-foreground text-sm w-16 flex-shrink-0">DAI:</label>
                     <input
                       type="text"
                       value={editDaiPlatform}
                       onChange={(e) => setEditDaiPlatform(e.target.value)}
                       placeholder="e.g., megaphone, acast"
-                      className="px-2 py-1 text-sm bg-secondary border border-border rounded w-32"
+                      className="flex-1 min-w-0 px-2 py-1 text-sm bg-secondary border border-border rounded"
                     />
                   </div>
-                  <div className="flex items-center gap-1">
-                    <label className="text-muted-foreground">Feed cap:</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-muted-foreground text-sm w-16 flex-shrink-0">Feed cap:</label>
                     <input
                       type="number"
                       value={editMaxEpisodes}
@@ -265,22 +265,24 @@ function FeedDetail() {
                       placeholder="300"
                       min={10}
                       max={500}
-                      className="px-2 py-1 text-sm bg-secondary border border-border rounded w-20"
+                      className="w-20 px-2 py-1 text-sm bg-secondary border border-border rounded"
                     />
                   </div>
-                  <button
-                    onClick={saveNetworkEdit}
-                    disabled={updateMutation.isPending}
-                    className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    {updateMutation.isPending ? 'Saving...' : 'Save'}
-                  </button>
-                  <button
-                    onClick={() => setIsEditingNetwork(false)}
-                    className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent"
-                  >
-                    Cancel
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveNetworkEdit}
+                      disabled={updateMutation.isPending}
+                      className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {updateMutation.isPending ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => setIsEditingNetwork(false)}
+                      className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
