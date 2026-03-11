@@ -716,6 +716,21 @@ def refresh_all_feeds():
         return error_response(f'Failed to refresh feeds: {str(e)}', 500)
 
 
+def _extract_artwork_url_from_feed(source_url: str) -> Optional[str]:
+    """Extract artwork URL from a podcast's RSS feed."""
+    try:
+        from rss_parser import RSSParser
+        rss_parser = RSSParser()
+        feed_content = rss_parser.fetch_feed(source_url)
+        if not feed_content:
+            return None
+        parsed_feed = rss_parser.parse_feed(feed_content)
+        return rss_parser.extract_podcast_artwork_url(parsed_feed)
+    except Exception as e:
+        logger.warning(f"Failed to extract artwork URL from feed: {e}")
+    return None
+
+
 @api.route('/feeds/<slug>/artwork', methods=['GET'])
 @log_request
 def get_artwork(slug):
@@ -727,9 +742,17 @@ def get_artwork(slug):
         # Try to get from database and download
         db = get_database()
         podcast = db.get_podcast_by_slug(slug)
-        if podcast and podcast.get('artwork_url'):
-            storage.download_artwork(slug, podcast['artwork_url'])
-            artwork = storage.get_artwork(slug)
+        if podcast:
+            artwork_url = podcast.get('artwork_url')
+            # If artwork_url is NULL (never extracted), try to extract from the source feed.
+            # Empty string means extraction was attempted but found nothing -- skip re-fetch.
+            if artwork_url is None and podcast.get('source_url'):
+                artwork_url = _extract_artwork_url_from_feed(podcast['source_url'])
+                # Store result (or empty string sentinel) to avoid repeated feed fetches
+                db.update_podcast(slug, artwork_url=artwork_url or '')
+            if artwork_url:
+                storage.download_artwork(slug, artwork_url)
+                artwork = storage.get_artwork(slug)
 
     if not artwork:
         return error_response('Artwork not found', 404)
@@ -1222,55 +1245,58 @@ def bulk_episode_action(slug):
     all_episodes = db.get_episodes_by_ids(slug, episode_ids)
     episodes_by_id = {ep['episode_id']: ep for ep in all_episodes}
 
-    for episode_id in episode_ids:
-        try:
+    if action == 'process':
+        # Collect eligible discovered episode IDs and batch-update
+        eligible_ids = []
+        for episode_id in episode_ids:
             episode = episodes_by_id.get(episode_id)
-            if not episode:
+            if not episode or episode.get('status') != 'discovered':
                 skipped += 1
                 continue
+            eligible_ids.append(episode_id)
+        if eligible_ids:
+            queued = db.batch_set_episodes_pending(slug, eligible_ids)
+            skipped += len(eligible_ids) - queued
 
-            ep_status = episode.get('status')
-
-            if action == 'process':
-                if ep_status != 'discovered':
+    elif action in ('reprocess', 'reprocess_full'):
+        # File cleanup must be per-episode, but DB updates are batched
+        mode = 'full' if action == 'reprocess_full' else 'reprocess'
+        eligible_ids = []
+        for episode_id in episode_ids:
+            try:
+                episode = episodes_by_id.get(episode_id)
+                if not episode or episode.get('status') not in ('processed', 'failed', 'permanently_failed'):
                     skipped += 1
                     continue
-                db.upsert_episode(
-                    slug, episode_id,
-                    status='pending',
-                    retry_count=0,
-                    error_message=None
-                )
-                queued += 1
-
-            elif action in ('reprocess', 'reprocess_full'):
-                if ep_status not in ('processed', 'failed', 'permanently_failed'):
-                    skipped += 1
-                    continue
-                mode = 'full' if action == 'reprocess_full' else 'reprocess'
                 storage.delete_processed_file(slug, episode_id)
-                db.clear_episode_details(slug, episode_id)
-                db.upsert_episode(
-                    slug, episode_id,
-                    status='pending',
-                    reprocess_mode=mode,
-                    reprocess_requested_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-                    retry_count=0,
-                    error_message=None
-                )
-                queued += 1
+                eligible_ids.append(episode_id)
+            except Exception as e:
+                logger.error(f"Bulk action error for {slug}:{episode_id}: {e}")
+                errors.append(f"{episode_id}: {str(e)}")
+        if eligible_ids:
+            db.batch_clear_episode_details(slug, eligible_ids)
+            now_str = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            queued = db.batch_set_episodes_pending(slug, eligible_ids,
+                                                    reprocess_mode=mode,
+                                                    reprocess_requested_at=now_str)
 
-            elif action == 'delete':
-                if ep_status not in ('processed', 'failed', 'permanently_failed'):
-                    skipped += 1
-                    continue
-                reset, freed = db.delete_episodes(slug, [episode_id], storage)
+    elif action == 'delete':
+        # Collect eligible IDs, let delete_episodes handle batching
+        eligible_ids = []
+        for episode_id in episode_ids:
+            episode = episodes_by_id.get(episode_id)
+            if not episode or episode.get('status') not in ('processed', 'failed', 'permanently_failed'):
+                skipped += 1
+                continue
+            eligible_ids.append(episode_id)
+        if eligible_ids:
+            try:
+                reset, freed = db.delete_episodes(slug, eligible_ids, storage)
                 queued += reset
                 freed_mb += freed
-
-        except Exception as e:
-            logger.error(f"Bulk action error for {slug}:{episode_id}: {e}")
-            errors.append(f"{episode_id}: {str(e)}")
+            except Exception as e:
+                logger.error(f"Bulk delete error for {slug}: {e}")
+                errors.append(str(e))
 
     # Trigger background processing for process/reprocess actions
     if action in ('process', 'reprocess', 'reprocess_full') and queued > 0:

@@ -2153,6 +2153,67 @@ class Database:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def batch_clear_episode_details(self, slug: str, episode_ids: List[str]) -> None:
+        """Clear episode_details for multiple episodes in one query."""
+        if not episode_ids:
+            return
+        episodes = self.get_episodes_by_ids(slug, episode_ids)
+        if not episodes:
+            return
+        db_ids = [ep['id'] for ep in episodes]
+        conn = self.get_connection()
+        placeholders = ','.join('?' for _ in db_ids)
+        conn.execute(
+            f"DELETE FROM episode_details WHERE episode_id IN ({placeholders})",
+            db_ids
+        )
+        conn.commit()
+
+    def batch_reset_episodes_to_discovered(self, slug: str, episode_ids: List[str]) -> None:
+        """Reset multiple episodes to discovered state in one query."""
+        if not episode_ids:
+            return
+        conn = self.get_connection()
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return
+        placeholders = ','.join('?' for _ in episode_ids)
+        conn.execute(
+            f"""UPDATE episodes SET
+                status = 'discovered',
+                processed_file = NULL, processed_at = NULL,
+                original_duration = NULL, new_duration = NULL,
+                ads_removed = 0, ads_removed_firstpass = 0, ads_removed_secondpass = 0,
+                error_message = NULL, ad_detection_status = NULL,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            WHERE podcast_id = ? AND episode_id IN ({placeholders})""",
+            [podcast['id']] + list(episode_ids)
+        )
+        conn.commit()
+
+    def batch_set_episodes_pending(self, slug: str, episode_ids: List[str],
+                                    reprocess_mode: str = None,
+                                    reprocess_requested_at: str = None) -> int:
+        """Set multiple episodes to pending status in one query."""
+        if not episode_ids:
+            return 0
+        conn = self.get_connection()
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return 0
+        placeholders = ','.join('?' for _ in episode_ids)
+        params = [reprocess_mode, reprocess_requested_at, podcast['id']] + list(episode_ids)
+        cursor = conn.execute(
+            f"""UPDATE episodes SET
+                status = 'pending', retry_count = 0, error_message = NULL,
+                reprocess_mode = ?, reprocess_requested_at = ?,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            WHERE podcast_id = ? AND episode_id IN ({placeholders})""",
+            params
+        )
+        conn.commit()
+        return cursor.rowcount
+
     def delete_episodes(self, slug: str, episode_ids: List[str], storage) -> Tuple[int, float]:
         """Delete audio files and reset episodes to 'discovered'.
 
@@ -2162,8 +2223,8 @@ class Database:
         episodes = self.get_episodes_by_ids(slug, episode_ids)
         episodes_by_id = {ep['episode_id']: ep for ep in episodes}
 
-        reset_count = 0
         freed_bytes = 0
+        ids_to_reset = []
 
         for episode_id in episode_ids:
             episode = episodes_by_id.get(episode_id)
@@ -2171,11 +2232,14 @@ class Database:
                 continue
 
             freed_bytes += storage.cleanup_episode_files(slug, episode_id)
-            self._reset_episode_to_discovered(slug, episode_id)
-            reset_count += 1
+            ids_to_reset.append(episode_id)
+
+        if ids_to_reset:
+            self.batch_clear_episode_details(slug, ids_to_reset)
+            self.batch_reset_episodes_to_discovered(slug, ids_to_reset)
 
         freed_mb = freed_bytes / (1024 * 1024)
-        return reset_count, freed_mb
+        return len(ids_to_reset), freed_mb
 
     def vacuum(self) -> int:
         """Run SQLITE VACUUM to reclaim disk space and compact WAL.
@@ -2202,6 +2266,9 @@ class Database:
         force_all=True resets ALL episodes with files regardless of age.
         Returns (count reset, MB freed).
         """
+        if storage is None:
+            raise ValueError("storage is required for cleanup_old_episodes")
+
         conn = self.get_connection()
 
         if not force_all:

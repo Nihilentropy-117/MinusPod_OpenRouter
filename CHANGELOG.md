@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Artwork missing after DB restore**: Feed refresh returning 304 (unchanged) now checks if artwork is cached. If artwork is missing (e.g., after a DB restore), forces a full fetch to re-extract and download artwork instead of returning early.
 - **Artwork extraction missing itunes:image fallback**: Podcast-level artwork extraction now falls back to `itunes:image` when the standard RSS `<image>` tag is absent, matching the pattern already used for episode-level artwork in `rss_parser.py`.
+- **Self-healing artwork endpoint**: When both the cached artwork file and `artwork_url` are missing (e.g., after extraction failures), the artwork endpoint now fetches the source RSS feed, extracts the artwork URL, persists it to the DB, and downloads the image on-demand instead of returning 404.
+- **`return undefined as T` in apiRequest**: Changed to `return {} as T` to prevent runtime TypeError when callers destructure empty/204 responses.
+- **`cleanup_old_episodes` crash with `storage=None`**: Now raises `ValueError` early instead of crashing with `AttributeError` deep in the call stack.
+- **Bulk actions N+1 DB queries**: Replaced per-episode DB calls in `delete_episodes`, `bulk_episode_action` (process/reprocess/delete) with batch methods (`batch_clear_episode_details`, `batch_reset_episodes_to_discovered`, `batch_set_episodes_pending`). For 500 episodes, reduces ~2000 DB calls to ~3.
 
 ## [1.0.42] - 2026-03-10
 

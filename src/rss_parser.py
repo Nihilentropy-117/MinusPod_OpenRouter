@@ -127,6 +127,19 @@ class RSSParser:
             logger.error(f"Failed to parse RSS feed: {e}")
             return None
 
+    @staticmethod
+    def extract_podcast_artwork_url(parsed_feed) -> Optional[str]:
+        """Extract podcast-level artwork URL from a parsed feed."""
+        if not parsed_feed or not parsed_feed.feed:
+            return None
+        feed = parsed_feed.feed
+        if hasattr(feed, 'image') and hasattr(feed.image, 'href'):
+            return feed.image.href
+        # Fallback to itunes:image
+        if 'itunes_image' in feed:
+            return feed.itunes_image.get('href')
+        return None
+
     def generate_episode_id(self, episode_url: str, guid: str = None) -> str:
         """Generate consistent episode ID from GUID or URL.
 

@@ -516,14 +516,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             description = parsed_feed.feed.get('description', '')[:500]
 
             # Extract artwork URL
-            artwork_url = None
-            if hasattr(parsed_feed.feed, 'image') and hasattr(parsed_feed.feed.image, 'href'):
-                artwork_url = parsed_feed.feed.image.href
-            elif 'image' in parsed_feed.feed and 'href' in parsed_feed.feed.image:
-                artwork_url = parsed_feed.feed.image.href
-            # Fallback to itunes:image (many podcasts use this instead of <image>)
-            if not artwork_url and 'itunes_image' in parsed_feed.feed:
-                artwork_url = parsed_feed.feed.itunes_image.get('href')
+            artwork_url = rss_parser.extract_podcast_artwork_url(parsed_feed)
 
             # Update podcast metadata in database
             db.update_podcast(
