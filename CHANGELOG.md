@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.47] - 2026-03-11
+
+### Fixed
+- **observed_duration truthiness bug**: `pattern_service.record_pattern_match()` now uses `is not None` check so duration=0.0 is not silently dropped
+- **Claude feedback double-update**: Duration feedback loop now tracks updated pattern IDs in a set, preventing inflation of `duration_samples` when multiple Claude ads overlap the same pattern region
+- **Claude feedback routed through pattern_service**: `ad_detector` now calls `pattern_service.update_duration()` instead of bypassing the service layer with a direct `db.update_pattern_duration()` call
+
+### Improved
+- **Unified boundary scanning**: Extracted shared `_scan_for_boundary()` from near-duplicate `_scan_for_intro` / `_scan_for_outro` methods
+- **Exclusive bucket assignment**: Patterns now go into their single closest TF-IDF bucket instead of potentially landing in multiple overlapping buckets
+
+### Added
+- **Tests**: Boundary scanning (5 tests), duration estimation edge cases (6 tests), Claude feedback dedup (2 tests)
+
 ## [1.0.46] - 2026-03-11
 
 ### Improved

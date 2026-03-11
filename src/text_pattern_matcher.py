@@ -236,21 +236,21 @@ class TextPatternMatcher:
                         logger.info(f"Loaded {len(self._patterns)} text patterns")
 
                         # Build per-bucket TF-IDF vectors for proportional window matching
+                        # Each pattern goes into its single closest bucket only
                         self._pattern_buckets = {}
-                        for window_size in WINDOW_SIZES:
-                            lo = window_size * (1 - WINDOW_SIZE_TOLERANCE)
-                            hi = window_size * (1 + WINDOW_SIZE_TOLERANCE)
-                            bucket_patterns = [
-                                p for p in self._patterns
-                                if p.text_template and lo <= len(p.text_template) <= hi
-                            ]
-                            if bucket_patterns:
-                                bucket_templates = [p.text_template for p in bucket_patterns]
-                                vectors = self._vectorizer.transform(bucket_templates)
-                                self._pattern_buckets[window_size] = {
-                                    'patterns': bucket_patterns,
-                                    'vectors': vectors
-                                }
+                        for pattern in self._patterns:
+                            if not pattern.text_template:
+                                continue
+                            tlen = len(pattern.text_template)
+                            closest_size = min(WINDOW_SIZES, key=lambda ws: abs(ws - tlen))
+                            if abs(tlen - closest_size) <= closest_size * WINDOW_SIZE_TOLERANCE:
+                                self._pattern_buckets.setdefault(
+                                    closest_size, {'patterns': [], 'vectors': None}
+                                )
+                                self._pattern_buckets[closest_size]['patterns'].append(pattern)
+                        for bucket in self._pattern_buckets.values():
+                            bucket_templates = [p.text_template for p in bucket['patterns']]
+                            bucket['vectors'] = self._vectorizer.transform(bucket_templates)
                     else:
                         logger.warning("Vectorizer unavailable, patterns loaded without TF-IDF indexing")
 
@@ -367,26 +367,24 @@ class TextPatternMatcher:
             return matches
 
         try:
-            from sklearn.metrics.pairwise import cosine_similarity
-            import numpy as np
-
             if self._pattern_buckets:
                 for window_size, bucket in self._pattern_buckets.items():
                     step_size = window_size // 3
                     self._score_windows(
                         full_text, segment_map, segments, matches,
                         bucket['patterns'], bucket['vectors'],
-                        window_size, step_size, cosine_similarity, np
+                        window_size, step_size
                     )
             else:
                 # Fallback: original fixed-window behavior
                 self._score_windows(
                     full_text, segment_map, segments, matches,
                     patterns, self._pattern_vectors,
-                    1500, 500, cosine_similarity, np
+                    1500, 500
                 )
 
         except ImportError:
+            # ImportError propagates from _score_windows's local sklearn/numpy imports
             logger.warning("sklearn not available for content matching")
         except Exception as e:
             logger.error(f"Content matching failed: {e}")
@@ -394,9 +392,11 @@ class TextPatternMatcher:
         return matches
 
     def _score_windows(self, full_text, segment_map, segments, matches,
-                       target_patterns, target_vectors, window_size, step_size,
-                       cosine_similarity, np):
+                       target_patterns, target_vectors, window_size, step_size):
         """Score sliding windows against a set of pattern vectors."""
+        from sklearn.metrics.pairwise import cosine_similarity
+        import numpy as np
+
         for start_pos in range(0, len(full_text) - MIN_TEXT_LENGTH, step_size):
             end_pos = min(start_pos + window_size, len(full_text))
             window_text = full_text[start_pos:end_pos]
@@ -557,66 +557,69 @@ class TextPatternMatcher:
         except Exception:
             return 0, 0
 
-    def _scan_for_outro(self, full_text, segment_map, segments, pattern, search_from_pos):
-        """Scan forward from intro match for a known outro variant."""
-        if not pattern.outro_variants:
+    def _scan_for_boundary(self, full_text, segment_map, segments, variants,
+                           search_start, search_end, extract_time):
+        """Scan a text region for a known phrase variant using fuzzy matching."""
+        if not variants:
             return None
 
-        best_end_time = None
+        best_time = None
         best_score = 0
-        search_end = min(search_from_pos + MAX_SCAN_CHARS, len(full_text))
-        search_region = full_text[search_from_pos:search_end]
+        search_region = full_text[search_start:search_end]
 
-        for outro in pattern.outro_variants:
-            if len(outro) < 10:
+        for phrase in variants:
+            if len(phrase) < 10:
                 continue
-            outro_lower = outro.lower()
-            pos, score = self._fuzzy_find(search_region, outro_lower)
+            phrase_lower = phrase.lower()
+            pos, score = self._fuzzy_find(search_region, phrase_lower)
             if score >= FUZZY_THRESHOLD * 100 and score > best_score:
-                # Offset correction: pos is relative to search_region
-                abs_pos = search_from_pos + pos + len(outro_lower)
-                _, end_time = self._char_pos_to_time(
-                    search_from_pos + pos, abs_pos, segment_map, segments
-                )
-                best_end_time = end_time
-                best_score = score
+                time = extract_time(search_start, pos, phrase_lower, segment_map, segments)
+                if time is not None:
+                    best_time = time
+                    best_score = score
 
-        return best_end_time
+        return best_time
+
+    def _scan_for_outro(self, full_text, segment_map, segments, pattern, search_from_pos):
+        """Scan forward from intro match for a known outro variant."""
+        search_end = min(search_from_pos + MAX_SCAN_CHARS, len(full_text))
+
+        def extract_end_time(region_start, pos, phrase_lower, seg_map, segs):
+            abs_pos = region_start + pos + len(phrase_lower)
+            _, end_time = self._char_pos_to_time(
+                region_start + pos, abs_pos, seg_map, segs
+            )
+            return end_time
+
+        return self._scan_for_boundary(
+            full_text, segment_map, segments, pattern.outro_variants,
+            search_from_pos, search_end, extract_end_time
+        )
 
     def _scan_for_intro(self, full_text, segment_map, segments, pattern, search_to_pos):
         """Scan backward from outro match for a known intro variant."""
-        if not pattern.intro_variants:
-            return None
-
-        best_start_time = None
-        best_score = 0
         search_start = max(0, search_to_pos - MAX_SCAN_CHARS)
-        search_region = full_text[search_start:search_to_pos]
 
-        for intro in pattern.intro_variants:
-            if len(intro) < 10:
-                continue
-            intro_lower = intro.lower()
-            pos, score = self._fuzzy_find(search_region, intro_lower)
-            if score >= FUZZY_THRESHOLD * 100 and score > best_score:
-                # Offset correction: pos is relative to search_region
-                abs_pos = search_start + pos
-                start_time, _ = self._char_pos_to_time(
-                    abs_pos, abs_pos + len(intro_lower), segment_map, segments
-                )
-                best_start_time = start_time
-                best_score = score
+        def extract_start_time(region_start, pos, phrase_lower, seg_map, segs):
+            abs_pos = region_start + pos
+            start_time, _ = self._char_pos_to_time(
+                abs_pos, abs_pos + len(phrase_lower), seg_map, segs
+            )
+            return start_time
 
-        return best_start_time
+        return self._scan_for_boundary(
+            full_text, segment_map, segments, pattern.intro_variants,
+            search_start, search_to_pos, extract_start_time
+        )
 
     def _estimate_end_from_duration(self, pattern, start_time):
         """Estimate ad end time from pattern's average duration."""
-        duration = pattern.avg_duration or DEFAULT_AD_DURATION_ESTIMATE
+        duration = pattern.avg_duration if pattern.avg_duration is not None else DEFAULT_AD_DURATION_ESTIMATE
         return start_time + duration
 
     def _estimate_start_from_duration(self, pattern, end_time):
         """Estimate ad start time from pattern's average duration."""
-        duration = pattern.avg_duration or DEFAULT_AD_DURATION_ESTIMATE
+        duration = pattern.avg_duration if pattern.avg_duration is not None else DEFAULT_AD_DURATION_ESTIMATE
         return max(0, end_time - duration)
 
     def _char_pos_to_time(

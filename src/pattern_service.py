@@ -509,7 +509,7 @@ class PatternService:
             self.db.increment_pattern_match(pattern_id)
 
             # Update duration running average if provided
-            if observed_duration and observed_duration > 0:
+            if observed_duration is not None and observed_duration > 0:
                 self.db.update_pattern_duration(pattern_id, observed_duration)
 
             # Check if this sponsor qualifies for global promotion
@@ -526,6 +526,13 @@ class PatternService:
 
         except Exception as e:
             logger.error(f"Failed to record pattern match: {e}")
+
+    def update_duration(self, pattern_id: int, observed_duration: float):
+        """Update pattern avg_duration from an observed match duration."""
+        if not self.db:
+            return
+        if observed_duration is not None and observed_duration > 0:
+            self.db.update_pattern_duration(pattern_id, observed_duration)
 
     def update_podcast_metadata(
         self,

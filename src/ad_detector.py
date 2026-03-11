@@ -696,7 +696,7 @@ def _unpack_region(region) -> tuple:
 
 # --- Uncovered tail preservation (Fix 2) ---
 
-def get_uncovered_portions(ad: Dict, covered_regions: List[tuple],
+def get_uncovered_portions(ad: Dict, covered_regions: list,
                            min_duration: float = None) -> List[Dict]:
     """Find portions of an ad not covered by pattern-matched regions.
 
@@ -705,7 +705,7 @@ def get_uncovered_portions(ad: Dict, covered_regions: List[tuple],
 
     Args:
         ad: Ad dict with 'start' and 'end'
-        covered_regions: List of (start, end) tuples from pattern matches
+        covered_regions: List of region dicts or (start, end) tuples
         min_duration: Minimum duration for an uncovered portion to keep
                      (defaults to MIN_UNCOVERED_TAIL_DURATION)
 
@@ -1923,10 +1923,7 @@ class AdDetector:
 
                     # Record pattern match for metrics and promotion
                     if self.pattern_service and match.pattern_id:
-                        self.pattern_service.record_pattern_match(
-                            match.pattern_id, episode_id,
-                            observed_duration=match.end - match.start
-                        )
+                        self.pattern_service.record_pattern_match(match.pattern_id, episode_id)
 
                 detection_stats['fingerprint_matches'] = fp_added
                 if fp_matches:
@@ -1980,10 +1977,7 @@ class AdDetector:
 
                     # Record pattern match for metrics and promotion
                     if self.pattern_service and match.pattern_id:
-                        self.pattern_service.record_pattern_match(
-                            match.pattern_id, episode_id,
-                            observed_duration=match.end - match.start
-                        )
+                        self.pattern_service.record_pattern_match(match.pattern_id, episode_id)
 
                 detection_stats['text_pattern_matches'] = tp_added
                 if text_matches:
@@ -2011,18 +2005,23 @@ class AdDetector:
         cross_episode_skipped = 0
 
         # Duration feedback: update pattern avg_duration from Claude's more accurate boundaries
+        updated_patterns = set()
         for ad in claude_ads:
             for region in pattern_matched_regions:
+                pid = region.get('pattern_id')
+                if not pid or pid in updated_patterns:
+                    continue
                 overlap = self._compute_overlap(
                     ad['start'], ad['end'],
                     region['start'], region['end']
                 )
                 if overlap >= PATTERN_CORRECTION_OVERLAP_THRESHOLD:
                     observed_duration = ad['end'] - ad['start']
-                    if self.pattern_service and region.get('pattern_id'):
-                        self.db.update_pattern_duration(
-                            region['pattern_id'], observed_duration
+                    if self.pattern_service:
+                        self.pattern_service.update_duration(
+                            pid, observed_duration
                         )
+                        updated_patterns.add(pid)
 
         for ad in claude_ads:
             uncovered_portions = get_uncovered_portions(ad, pattern_matched_regions)
@@ -2095,7 +2094,8 @@ class AdDetector:
                 return True
         return False
 
-    def _compute_overlap(self, a_start, a_end, b_start, b_end):
+    @staticmethod
+    def _compute_overlap(a_start, a_end, b_start, b_end):
         """Return fraction of region B covered by region A (0.0-1.0)."""
         overlap_start = max(a_start, b_start)
         overlap_end = min(a_end, b_end)
