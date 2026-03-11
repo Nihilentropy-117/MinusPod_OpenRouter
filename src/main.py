@@ -620,7 +620,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
 
         # Modify feed URLs (pass storage to include Podcasting 2.0 tags)
         feed_cap = podcast.get('max_episodes') or 300
-        modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage, max_episodes=feed_cap)
+        extra_episodes = db.get_processed_episodes_for_feed(podcast['id'])
+        modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage,
+                                               max_episodes=feed_cap,
+                                               extra_episodes=extra_episodes)
 
         # Save modified RSS
         storage.save_rss(slug, modified_rss)
@@ -1497,10 +1500,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         status_service.start_job(slug, episode_id, episode_title, podcast_name)
         status_service.update_job_stage("downloading", 0)
 
-        db.upsert_episode(slug, episode_id,
+        upsert_kwargs = dict(
             original_url=episode_url, title=episode_title,
             description=episode_description, artwork_url=episode_artwork_url,
-            published_at=episode_published_at, status='processing')
+            status='processing'
+        )
+        if episode_published_at:
+            upsert_kwargs['published_at'] = episode_published_at
+        db.upsert_episode(slug, episode_id, **upsert_kwargs)
 
         # Stage 1: Download and transcribe
         audio_path, segments = _download_and_transcribe(slug, episode_id, episode_url, podcast_name)
@@ -1725,21 +1732,35 @@ def serve_rss(slug):
         abort(503)
 
 
-def _lookup_episode(slug, episode_id, feed_map):
+def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     """Fetch the RSS feed once and return episode data + podcast name.
 
     Returns (episode_dict, podcast_name) or (None, None).
-    episode_dict keys: url, title, description, artwork_url.
+    episode_dict keys: url, title, description, artwork_url, published.
+    Falls back to database if episode is not in the upstream RSS feed.
     """
     original_feed = rss_parser.fetch_feed(feed_map[slug]['in'])
-    if not original_feed:
-        return None, None
-    parsed_feed = rss_parser.parse_feed(original_feed)
-    podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
-    episodes = rss_parser.extract_episodes(original_feed)
-    for ep in episodes:
-        if ep['id'] == episode_id:
-            return ep, podcast_name
+    if original_feed:
+        parsed_feed = rss_parser.parse_feed(original_feed)
+        podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
+        episodes = rss_parser.extract_episodes(original_feed)
+        for ep in episodes:
+            if ep['id'] == episode_id:
+                return ep, podcast_name
+
+    # Fallback: episode not in upstream RSS (dropped off due to age/cap).
+    # Use the original_url stored in the database from discovery.
+    episode = episode_row or db.get_episode(slug, episode_id)
+    if episode and episode.get('original_url'):
+        return {
+            'id': episode_id,
+            'url': episode['original_url'],
+            'title': episode.get('title'),
+            'description': episode.get('description'),
+            'artwork_url': episode.get('artwork_url'),
+            'published': episode.get('published_at'),
+        }, episode.get('podcast_title', 'Unknown')
+
     return None, None
 
 
@@ -1829,15 +1850,15 @@ def serve_episode(slug, episode_id):
 
     # HEAD requests should not trigger processing - proxy upstream headers
     if request.method == 'HEAD' and status != 'processed':
-        ep_data, _ = _lookup_episode(slug, episode_id, feed_map)
+        ep_data, _ = _lookup_episode(slug, episode_id, feed_map, episode_row=episode)
         if ep_data:
             return _head_upstream(slug, episode_id, ep_data['url'])
         abort(404)
 
     # Need to process - find original URL from RSS
-    ep_data, podcast_name = _lookup_episode(slug, episode_id, feed_map)
+    ep_data, podcast_name = _lookup_episode(slug, episode_id, feed_map, episode_row=episode)
     if not ep_data:
-        feed_logger.error(f"[{slug}:{episode_id}] Episode not found in RSS")
+        feed_logger.error(f"[{slug}:{episode_id}] Episode not found in RSS or database")
         abort(404)
 
     original_url = ep_data['url']
@@ -1848,7 +1869,8 @@ def serve_episode(slug, episode_id):
     # Start background processing (non-blocking)
     started, reason = start_background_processing(
         slug, episode_id, original_url, episode_title,
-        podcast_name, episode_description, episode_artwork_url
+        podcast_name, episode_description, episode_artwork_url,
+        published_at=ep_data.get('published')
     )
 
     if started:

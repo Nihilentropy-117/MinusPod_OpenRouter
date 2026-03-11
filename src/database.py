@@ -1700,7 +1700,8 @@ class Database:
         """Get episode by slug and episode_id."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT e.*, p.slug, ed.transcript_text, ed.transcript_vtt,
+            """SELECT e.*, p.slug, p.title AS podcast_title,
+                      ed.transcript_text, ed.transcript_vtt,
                       ed.chapters_json, ed.ad_markers_json,
                       ed.first_pass_response, ed.first_pass_prompt,
                       ed.second_pass_prompt, ed.second_pass_response
@@ -2137,6 +2138,20 @@ class Database:
             error_message=None,
             ad_detection_status=None,
         )
+
+    def get_processed_episodes_for_feed(self, podcast_id: int) -> List[Dict]:
+        """Get all processed episodes with files for inclusion in RSS feed."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT episode_id, title, description, published_at,
+                      new_duration, episode_number, original_url
+               FROM episodes
+               WHERE podcast_id = ? AND status = 'processed'
+                     AND processed_file IS NOT NULL
+               ORDER BY published_at DESC""",
+            (podcast_id,)
+        )
+        return [dict(row) for row in cursor.fetchall()]
 
     def get_episodes_by_ids(self, slug: str, episode_ids: List[str]) -> List[Dict]:
         """Get multiple episodes by slug and episode_ids in a single query."""

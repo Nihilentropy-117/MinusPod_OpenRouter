@@ -6,12 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.43] - 2026-03-10
+## [1.0.44] - 2026-03-11
+
+### Fixed
+- **Duplicate `db.get_episode` query in `serve_episode`**: `_lookup_episode()` now accepts an optional pre-fetched episode row, eliminating a redundant JOIN query on the DB fallback path.
+- **Inaccurate log message**: Error log for episode not found now says "not found in RSS or database" instead of just "in RSS".
+- **Type hint `List[Dict] = None`**: Changed to `Optional[List[Dict]] = None` in `modify_feed()` signature.
+- **Redundant `get_podcast_by_slug` in `get_processed_episodes_for_feed`**: Method now accepts `podcast_id` directly instead of resolving slug internally, avoiding an unnecessary GROUP BY query when the caller already has the podcast dict.
+
+## [1.0.43] - 2026-03-11
 
 ### Added
 - **Episode sort by episode number**: Episodes can now be sorted by episode number (from `itunes:episode` tag), publish date, or creation date. Sort dropdown on feed detail page with options: Newest First, Oldest First, Episode # High-Low, Episode # Low-High.
 - **`episode_number` field**: Parsed from RSS `itunes:episode` tag end-to-end -- RSS parsing, DB storage, API response (`episodeNumber`), and RSS feed output.
 - **`sort_by` / `sort_dir` API params**: `GET /api/v1/feeds/{slug}/episodes` now accepts `sort_by` (published_at, created_at, episode_number, title, status) and `sort_dir` (asc, desc).
+- **Processed episodes appended beyond RSS cap**: RSS feed now appends processed episodes from the DB that fall outside the `max_episodes` cap. Podcast clients can see and download older processed episodes that would otherwise be invisible.
+- **DB fallback for old episodes**: `_lookup_episode()` now falls back to the database when an episode is not in the upstream RSS feed (e.g., dropped off due to age/cap). On-demand processing works for any discovered episode.
 
 ### Fixed
 - **Artwork missing after DB restore**: Feed refresh returning 304 (unchanged) now checks if artwork is cached. If artwork is missing (e.g., after a DB restore), forces a full fetch to re-extract and download artwork instead of returning early.
@@ -21,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`cleanup_old_episodes` crash with `storage=None`**: Now raises `ValueError` early instead of crashing with `AttributeError` deep in the call stack.
 - **Bulk actions N+1 DB queries**: Replaced per-episode DB calls in `delete_episodes`, `bulk_episode_action` (process/reprocess/delete) with batch methods (`batch_clear_episode_details`, `batch_reset_episodes_to_discovered`, `batch_set_episodes_pending`). For 500 episodes, reduces ~2000 DB calls to ~3.
 - **Artwork 404 for feeds with stale cache flag**: When artwork file is missing on disk but `artwork_cached=1` in DB, the artwork endpoint now clears the stale flag, re-extracts the URL from the source feed (including empty-string sentinels from prior failed extractions), and re-downloads. Also fixes `download_artwork` short-circuit that trusted the DB flag without verifying the file exists.
+- **Processing overwrites `published_at` with NULL**: `serve_episode()` now passes `published_at` to background processing. `process_episode()` defensively skips `published_at` when None to avoid overwriting a good value. Fixes episodes dropping to bottom of "Newest First" sort during processing.
 
 ## [1.0.42] - 2026-03-10
 
