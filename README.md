@@ -8,21 +8,54 @@ Removes ads from podcasts using Whisper transcription. Serves modified RSS feeds
 
 ## Table of Contents
 
+- [Table of Contents](#table-of-contents)
 - [How It Works](#how-it-works)
-- [Advanced Features](#advanced-features-quick-reference)
+- [Advanced Features (Quick Reference)](#advanced-features-quick-reference)
+  - [Verification Pass](#verification-pass)
+  - [Sliding Window Processing](#sliding-window-processing)
+  - [Processing Queue](#processing-queue)
+  - [Post-Detection Validation](#post-detection-validation)
+  - [Cross-Episode Ad Pattern Learning](#cross-episode-ad-pattern-learning)
+  - [Real-Time Processing Status](#real-time-processing-status)
+  - [Reprocessing Modes](#reprocessing-modes)
+  - [Audio Analysis](#audio-analysis)
 - [Requirements](#requirements)
+  - [Memory Requirements](#memory-requirements)
 - [Quick Start](#quick-start)
 - [Web Interface](#web-interface)
+  - [Ad Editor Workflow](#ad-editor-workflow)
+  - [Ad Editor (Mobile-First)](#ad-editor-mobile-first)
+  - [Screenshots](#screenshots)
+    - [Dashboard](#dashboard)
+    - [Feed Detail](#feed-detail)
+    - [Episode Detail](#episode-detail)
+    - [Detected Ads](#detected-ads)
+    - [Ad Editor](#ad-editor)
+    - [Ad Patterns](#ad-patterns)
+    - [History](#history)
+    - [Settings](#settings)
+    - [API Documentation](#api-documentation)
 - [Configuration](#configuration)
+  - [Adding Feeds](#adding-feeds)
+  - [Ad Detection Settings](#ad-detection-settings)
 - [Finding Podcast RSS Feeds](#finding-podcast-rss-feeds)
 - [Usage](#usage)
   - [Audiobookshelf](#audiobookshelf)
 - [Environment Variables](#environment-variables)
+  - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local LLM)](#using-ollama-local-llm)
+  - [Setup](#setup)
+  - [Recommended Models](#recommended-models)
+    - [Pass 1 -- First Pass Detection](#pass-1----first-pass-detection)
+    - [Verification Pass](#verification-pass-1)
+    - [Chapters](#chapters)
+  - [Accuracy vs. Claude](#accuracy-vs-claude)
+  - [JSON Reliability Risks](#json-reliability-risks)
 - [API](#api)
 - [Remote Access](#remote-access)
+  - [Security Recommendations](#security-recommendations)
 - [Data Storage](#data-storage)
-- [Custom Assets](#custom-assets-optional)
+- [Custom Assets (Optional)](#custom-assets-optional)
 - [License](#license)
 
 ## How It Works
@@ -220,6 +253,12 @@ The server includes a web-based management UI at `/ui/`:
 - **History** - View processing history with stats, filtering, and export
 - **Settings** - Configure LLM provider (Anthropic/Ollama/OpenAI-compatible), AI models, ad detection prompts, retention period, view system statistics, LLM token usage and cost
 - **Real-Time Status Bar** - Shows current processing progress across all pages
+
+### Ad Editor Workflow
+
+The ad editor follows a **review-and-reprocess** model. When you listen to a detected ad segment, the audio player plays the **processed output** (post-cut audio), not the original. This is intentional: you are verifying what the final listener will hear. If a cut sounds wrong, adjust the boundaries and reprocess -- the system will re-cut from the original source audio.
+
+The **Original Transcript** panel on the Episode Detail page shows the full pre-cut transcript so you can see exactly what text was identified and removed.
 
 ### Ad Editor (Mobile-First)
 
