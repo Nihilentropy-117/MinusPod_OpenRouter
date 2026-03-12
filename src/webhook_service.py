@@ -263,6 +263,7 @@ def fire_test_event(webhook_config):
 
     if context is None:
         context = dict(_DUMMY_CONTEXT)
+        context['timestamp'] = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
     status = _prepare_and_dispatch(webhook_config, context, add_test_flag=True, max_attempts=1)
     if status is not None and 200 <= status < 300:
