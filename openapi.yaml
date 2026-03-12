@@ -2891,7 +2891,7 @@ components:
       description: Webhook identifier
       schema:
         type: string
-        example: wh_abc123
+        example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
     Feed:

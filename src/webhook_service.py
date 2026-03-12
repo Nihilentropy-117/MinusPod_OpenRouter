@@ -80,9 +80,9 @@ def _render_template(template_str, context):
     return template.render(**context)
 
 
-def _dispatch_webhook(url, body_bytes, headers):
+def _dispatch_webhook(url, body_bytes, headers, max_attempts=_RETRY_ATTEMPTS):
     """POST body_bytes to url with retry logic. Fire-and-forget."""
-    for attempt in range(1, _RETRY_ATTEMPTS + 1):
+    for attempt in range(1, max_attempts + 1):
         try:
             req = urllib.request.Request(
                 url, data=body_bytes, headers=headers, method='POST'
@@ -96,25 +96,30 @@ def _dispatch_webhook(url, body_bytes, headers):
         except (urllib.error.URLError, urllib.error.HTTPError, OSError) as exc:
             logger.warning(
                 "Webhook delivery to %s failed (attempt %d/%d): %s",
-                url, attempt, _RETRY_ATTEMPTS, exc,
+                url, attempt, max_attempts, exc,
             )
-            if attempt < _RETRY_ATTEMPTS:
+            if attempt < max_attempts:
                 time.sleep(_RETRY_DELAY_SECS)
         except Exception:
             logger.exception(
                 "Unexpected error dispatching webhook to %s (attempt %d/%d)",
-                url, attempt, _RETRY_ATTEMPTS,
+                url, attempt, max_attempts,
             )
-            if attempt < _RETRY_ATTEMPTS:
+            if attempt < max_attempts:
                 time.sleep(_RETRY_DELAY_SECS)
     return None
 
 
-def _prepare_and_dispatch(webhook_config, context, add_test_flag=False):
+def _prepare_and_dispatch(webhook_config, context, add_test_flag=False,
+                          max_attempts=_RETRY_ATTEMPTS):
     """Render payload and dispatch to a single webhook. Returns HTTP status or None."""
     url = webhook_config.get('url')
     if not url:
         return None
+
+    if add_test_flag:
+        context = dict(context)
+        context['test'] = True
 
     content_type = webhook_config.get('contentType', 'application/json')
     template_str = webhook_config.get('payloadTemplate')
@@ -127,8 +132,6 @@ def _prepare_and_dispatch(webhook_config, context, add_test_flag=False):
             return None
     else:
         payload = dict(context)
-        if add_test_flag:
-            payload['test'] = True
         body_str = json.dumps(payload)
 
     body_bytes = body_str.encode('utf-8')
@@ -141,13 +144,14 @@ def _prepare_and_dispatch(webhook_config, context, add_test_flag=False):
         ).hexdigest()
         headers['X-MinusPod-Signature'] = f"sha256={sig}"
 
-    return _dispatch_webhook(url, body_bytes, headers)
+    return _dispatch_webhook(url, body_bytes, headers, max_attempts=max_attempts)
 
 
-def _load_webhooks():
+def load_webhooks(db=None):
     """Load webhooks list from DB settings."""
-    from database import Database
-    db = Database()
+    if db is None:
+        from database import Database  # deferred to avoid circular imports
+        db = Database()
     raw = db.get_setting('webhooks')
     if not raw:
         return []
@@ -163,7 +167,7 @@ def _fire_event_sync(event, episode_id, slug, episode_title, processing_time,
                      llm_cost, ads_removed, error_message, original_duration,
                      new_duration):
     """Synchronous webhook dispatch -- called in a daemon thread by fire_event."""
-    webhooks = _load_webhooks()
+    webhooks = load_webhooks()
     if not webhooks:
         return
 
@@ -210,7 +214,9 @@ def render_template_preview(template_string):
     Returns the rendered string. Raises jinja2.TemplateError on invalid
     templates so callers can surface the error to the user.
     """
-    return _render_template(template_string, _DUMMY_CONTEXT)
+    context = dict(_DUMMY_CONTEXT)
+    context['timestamp'] = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    return _render_template(template_string, context)
 
 
 def fire_test_event(webhook_config):
@@ -221,7 +227,7 @@ def fire_test_event(webhook_config):
 
     Returns True on HTTP 2xx, False otherwise.
     """
-    from database import Database
+    from database import Database  # deferred to avoid circular imports
 
     db = Database()
     context = None
@@ -255,7 +261,7 @@ def fire_test_event(webhook_config):
     if context is None:
         context = dict(_DUMMY_CONTEXT)
 
-    status = _prepare_and_dispatch(webhook_config, context, add_test_flag=True)
+    status = _prepare_and_dispatch(webhook_config, context, add_test_flag=True, max_attempts=1)
     if status is not None and 200 <= status < 300:
         return True
     return False

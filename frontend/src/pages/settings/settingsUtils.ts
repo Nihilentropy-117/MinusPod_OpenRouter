@@ -33,7 +33,7 @@ export function formatCost(cost: number): string {
 
 export function formatStorage(mb: number): string {
   if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
-  return `${mb.toFixed(2)} MB`;
+  return `${mb.toFixed(1)} MB`;
 }
 
 export function formatModelLabel(model: ClaudeModel): string {

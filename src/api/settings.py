@@ -10,7 +10,8 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, _enrich_models_with_pricing, limiter,
 )
-from webhook_service import render_template_preview, fire_test_event, VALID_EVENTS
+from utils.url import validate_url, SSRFError
+from webhook_service import render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS
 
 logger = logging.getLogger('podcast.api')
 
@@ -388,16 +389,7 @@ def update_retention_settings():
 
 # ========== Webhook Helpers ==========
 
-def _load_webhooks(db):
-    """Load webhooks list from DB settings."""
-    raw = db.get_setting('webhooks')
-    if not raw:
-        return []
-    try:
-        webhooks = json.loads(raw)
-        return webhooks if isinstance(webhooks, list) else []
-    except (json.JSONDecodeError, TypeError):
-        return []
+MAX_WEBHOOKS = 25
 
 
 def _save_webhooks(db, webhooks):
@@ -436,7 +428,7 @@ def _validate_events(events):
 def list_webhooks():
     """List all webhooks, stripping secrets."""
     db = get_database()
-    webhooks = _load_webhooks(db)
+    webhooks = load_webhooks(db)
     return json_response({'webhooks': [_strip_secret(wh) for wh in webhooks]})
 
 
@@ -452,6 +444,11 @@ def create_webhook():
     if not url or not (url.startswith('http://') or url.startswith('https://')):
         return error_response('url must start with http:// or https://', 400)
 
+    try:
+        validate_url(url)
+    except SSRFError as e:
+        return error_response(f'Invalid webhook URL: {e}', 400)
+
     events = data.get('events')
     events_err = _validate_events(events)
     if events_err:
@@ -466,7 +463,10 @@ def create_webhook():
             return error_response(f'Invalid payloadTemplate: {exc}', 400)
 
     db = get_database()
-    webhooks = _load_webhooks(db)
+    webhooks = load_webhooks(db)
+
+    if len(webhooks) >= MAX_WEBHOOKS:
+        return error_response(f'Maximum of {MAX_WEBHOOKS} webhooks allowed', 400)
 
     webhook = {
         'id': str(uuid.uuid4()),
@@ -517,7 +517,7 @@ def update_webhook(webhook_id):
         return error_response('Request body required', 400)
 
     db = get_database()
-    webhooks = _load_webhooks(db)
+    webhooks = load_webhooks(db)
     target = _find_webhook(webhooks, webhook_id)
     if not target:
         return error_response('Webhook not found', 404)
@@ -526,6 +526,10 @@ def update_webhook(webhook_id):
         url = data['url'].strip()
         if not url or not (url.startswith('http://') or url.startswith('https://')):
             return error_response('url must start with http:// or https://', 400)
+        try:
+            validate_url(url)
+        except SSRFError as e:
+            return error_response(f'Invalid webhook URL: {e}', 400)
         target['url'] = url
 
     if 'events' in data:
@@ -566,7 +570,7 @@ def update_webhook(webhook_id):
 def delete_webhook(webhook_id):
     """Delete a webhook."""
     db = get_database()
-    webhooks = _load_webhooks(db)
+    webhooks = load_webhooks(db)
 
     original_len = len(webhooks)
     webhooks = [wh for wh in webhooks if wh.get('id') != webhook_id]
@@ -585,7 +589,7 @@ def delete_webhook(webhook_id):
 def test_webhook(webhook_id):
     """Send a test event to a webhook."""
     db = get_database()
-    webhooks = _load_webhooks(db)
+    webhooks = load_webhooks(db)
     target = _find_webhook(webhooks, webhook_id)
     if not target:
         return error_response('Webhook not found', 404)

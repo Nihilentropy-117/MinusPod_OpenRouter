@@ -326,7 +326,7 @@ def export_opml():
         xml_output,
         mimetype='application/xml',
         headers={
-            'Content-Disposition': 'attachment; filename=minuspod-feeds.opml'
+            'Content-Disposition': 'attachment; filename="minuspod-feeds.opml"'
         }
     )
 

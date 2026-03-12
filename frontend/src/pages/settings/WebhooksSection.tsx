@@ -140,7 +140,7 @@ function WebhooksSection() {
       events: form.events,
       enabled: form.enabled,
       payloadTemplate: form.payloadTemplate || null,
-      contentType: form.payloadTemplate ? form.contentType : 'application/json',
+      contentType: form.contentType,
     };
     if (form.secret) {
       payload.secret = form.secret;
@@ -326,9 +326,12 @@ function WebhooksSection() {
 
             {/* Payload Template */}
             <div>
-              <label htmlFor="webhook-template" className="block text-sm font-medium text-foreground mb-1">
+              <label htmlFor="webhook-template" className="block text-sm font-medium text-foreground mb-0.5">
                 Payload Template (optional)
               </label>
+              <p className="text-xs text-muted-foreground mb-1">
+                Customize the JSON body sent to your endpoint
+              </p>
               <textarea
                 id="webhook-template"
                 value={form.payloadTemplate}
@@ -363,21 +366,19 @@ function WebhooksSection() {
               )}
             </div>
 
-            {/* Content Type - only when template is set */}
-            {form.payloadTemplate.trim() && (
-              <div>
-                <label htmlFor="webhook-content-type" className="block text-sm font-medium text-foreground mb-1">
-                  Content-Type
-                </label>
-                <input
-                  id="webhook-content-type"
-                  type="text"
-                  value={form.contentType}
-                  onChange={(e) => setForm((prev) => ({ ...prev, contentType: e.target.value }))}
-                  className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
-                />
-              </div>
-            )}
+            {/* Content Type */}
+            <div>
+              <label htmlFor="webhook-content-type" className="block text-sm font-medium text-foreground mb-1">
+                Content-Type
+              </label>
+              <input
+                id="webhook-content-type"
+                type="text"
+                value={form.contentType}
+                onChange={(e) => setForm((prev) => ({ ...prev, contentType: e.target.value }))}
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+              />
+            </div>
 
             {/* Secret */}
             <div>
