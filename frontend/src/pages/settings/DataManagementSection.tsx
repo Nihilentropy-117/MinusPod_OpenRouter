@@ -1,14 +1,26 @@
 import { useState } from 'react';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { exportOpml, downloadBackup } from '../../api/settings';
+import { formatStorage } from './settingsUtils';
 
 type ActionStatus = 'idle' | 'loading' | 'success' | 'error';
 
-function DataManagementSection() {
+interface DataManagementSectionProps {
+  onResetEpisodes: () => void;
+  resetIsPending: boolean;
+  resetData: { episodesRemoved: number; spaceFreedMb: number } | undefined;
+}
+
+function DataManagementSection({
+  onResetEpisodes,
+  resetIsPending,
+  resetData,
+}: DataManagementSectionProps) {
   const [opmlStatus, setOpmlStatus] = useState<ActionStatus>('idle');
   const [opmlError, setOpmlError] = useState('');
   const [backupStatus, setBackupStatus] = useState<ActionStatus>('idle');
   const [backupError, setBackupError] = useState('');
+  const [resetConfirm, setResetConfirm] = useState(false);
 
   const handleExportOpml = async () => {
     setOpmlStatus('loading');
@@ -129,6 +141,37 @@ function DataManagementSection() {
           </button>
           {renderStatusIndicator(backupStatus, backupError)}
         </div>
+      </div>
+
+      <div className="mt-4 pt-4 border-t border-border">
+        <button
+          onClick={() => {
+            if (resetConfirm) {
+              onResetEpisodes();
+              setResetConfirm(false);
+            } else {
+              setResetConfirm(true);
+              setTimeout(() => setResetConfirm(false), 3000);
+            }
+          }}
+          disabled={resetIsPending}
+          className={`px-4 py-2 rounded transition-colors disabled:opacity-50 ${
+            resetConfirm
+              ? 'bg-destructive text-destructive-foreground hover:bg-destructive/80'
+              : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+          }`}
+        >
+          {resetIsPending
+            ? 'Resetting...'
+            : resetConfirm
+            ? 'Click again to confirm'
+            : 'Reset All Episodes'}
+        </button>
+        {resetData && (
+          <span className="ml-3 text-sm text-muted-foreground">
+            Reset {resetData.episodesRemoved} episodes, freed {formatStorage(resetData.spaceFreedMb ?? 0)}
+          </span>
+        )}
       </div>
     </CollapsibleSection>
   );

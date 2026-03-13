@@ -20,6 +20,16 @@ import AdDetectionSection from './settings/AdDetectionSection';
 import Podcasting20Section from './settings/Podcasting20Section';
 import PromptsSection from './settings/PromptsSection';
 
+function SettingsGroupHeader({ title }: { title: string }) {
+  return (
+    <div className="pt-4 pb-1">
+      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        {title}
+      </h3>
+    </div>
+  );
+}
+
 function Settings() {
   const queryClient = useQueryClient();
   const { isPasswordSet, logout, refreshStatus } = useAuth();
@@ -41,7 +51,6 @@ function Settings() {
   const [whisperApiConfig, setWhisperApiConfig] = useState<WhisperApiConfig>({
     baseUrl: '', apiKey: '', apiKeyConfigured: undefined, model: 'whisper-1',
   });
-  const [cleanupConfirm, setCleanupConfirm] = useState(false);
   const [retentionDays, setRetentionDays] = useState(30);
   const [retentionEnabled, setRetentionEnabled] = useState(true);
 
@@ -206,18 +215,8 @@ function Settings() {
     mutationFn: runCleanup,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['status'] });
-      setCleanupConfirm(false);
     },
   });
-
-  const handleCleanup = () => {
-    if (cleanupConfirm) {
-      cleanupMutation.mutate();
-    } else {
-      setCleanupConfirm(true);
-      setTimeout(() => setCleanupConfirm(false), 3000);
-    }
-  };
 
   if (settingsLoading) {
     return <LoadingSpinner className="py-12" />;
@@ -248,30 +247,6 @@ function Settings() {
       <SystemStatusSection
         status={status}
         statusLoading={statusLoading}
-        cleanupConfirm={cleanupConfirm}
-        cleanupIsPending={cleanupMutation.isPending}
-        cleanupData={cleanupMutation.data}
-        onCleanup={handleCleanup}
-      />
-
-      <StorageRetentionSection
-        retentionEnabled={retentionEnabled}
-        retentionDays={retentionDays}
-        onRetentionEnabledChange={setRetentionEnabled}
-        onRetentionDaysChange={setRetentionDays}
-        onSave={() => retentionMutation.mutate(retentionEnabled ? retentionDays : 0)}
-        saveIsPending={retentionMutation.isPending}
-        saveIsSuccess={retentionMutation.isSuccess}
-      />
-
-      <DataManagementSection />
-
-      <WebhooksSection />
-
-      <SecuritySection
-        isPasswordSet={isPasswordSet}
-        logout={logout}
-        refreshStatus={refreshStatus}
       />
 
       <ProcessingQueueSection
@@ -279,6 +254,8 @@ function Settings() {
         onCancel={(params) => cancelMutation.mutate(params)}
         cancelIsPending={cancelMutation.isPending}
       />
+
+      <SettingsGroupHeader title="AI & Processing" />
 
       <LLMProviderSection
         llmProvider={llmProvider}
@@ -313,23 +290,11 @@ function Settings() {
         }
       />
 
-      <AudioSection
-        audioBitrate={audioBitrate}
-        onAudioBitrateChange={setAudioBitrate}
-      />
-
       <AdDetectionSection
         minCutConfidence={minCutConfidence}
         autoProcessEnabled={autoProcessEnabled}
         onMinCutConfidenceChange={setMinCutConfidence}
         onAutoProcessEnabledChange={setAutoProcessEnabled}
-      />
-
-      <Podcasting20Section
-        vttTranscriptsEnabled={vttTranscriptsEnabled}
-        chaptersEnabled={chaptersEnabled}
-        onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
-        onChaptersEnabledChange={setChaptersEnabled}
       />
 
       <PromptsSection
@@ -339,6 +304,46 @@ function Settings() {
         onVerificationPromptChange={setVerificationPrompt}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
+      />
+
+      <SettingsGroupHeader title="Output" />
+
+      <AudioSection
+        audioBitrate={audioBitrate}
+        onAudioBitrateChange={setAudioBitrate}
+      />
+
+      <Podcasting20Section
+        vttTranscriptsEnabled={vttTranscriptsEnabled}
+        chaptersEnabled={chaptersEnabled}
+        onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
+        onChaptersEnabledChange={setChaptersEnabled}
+      />
+
+      <SettingsGroupHeader title="Data & Security" />
+
+      <StorageRetentionSection
+        retentionEnabled={retentionEnabled}
+        retentionDays={retentionDays}
+        onRetentionEnabledChange={setRetentionEnabled}
+        onRetentionDaysChange={setRetentionDays}
+        onSave={() => retentionMutation.mutate(retentionEnabled ? retentionDays : 0)}
+        saveIsPending={retentionMutation.isPending}
+        saveIsSuccess={retentionMutation.isSuccess}
+      />
+
+      <DataManagementSection
+        onResetEpisodes={() => cleanupMutation.mutate()}
+        resetIsPending={cleanupMutation.isPending}
+        resetData={cleanupMutation.data}
+      />
+
+      <WebhooksSection />
+
+      <SecuritySection
+        isPasswordSet={isPasswordSet}
+        logout={logout}
+        refreshStatus={refreshStatus}
       />
 
       {/* Error display */}

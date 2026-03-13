@@ -1,5 +1,8 @@
+import { useRef } from 'react';
 import type { ProcessingEpisode } from '../../api/settings';
 import CollapsibleSection from '../../components/CollapsibleSection';
+
+const STORAGE_KEY = 'settings-section-processing-queue';
 
 interface ProcessingQueueSectionProps {
   processingEpisodes: ProcessingEpisode[] | undefined;
@@ -12,9 +15,23 @@ function ProcessingQueueSection({
   onCancel,
   cancelIsPending,
 }: ProcessingQueueSectionProps) {
+  const hasProcessing = !!(processingEpisodes && processingEpisodes.length > 0);
+  const prevHasProcessing = useRef(false);
+
+  // Write synchronously (before key-triggered remount) so the new CollapsibleSection reads it.
+  // Gated by ref to avoid writing on every 5s poll cycle.
+  if (hasProcessing && !prevHasProcessing.current) {
+    localStorage.setItem(STORAGE_KEY, 'true');
+  }
+  prevHasProcessing.current = hasProcessing;
+
   return (
-    <CollapsibleSection title="Processing Queue">
-      {processingEpisodes && processingEpisodes.length > 0 ? (
+    <CollapsibleSection
+      title="Processing Queue"
+      storageKey={STORAGE_KEY}
+      key={hasProcessing ? 'processing-active' : 'processing-idle'}
+    >
+      {hasProcessing ? (
         <div className="space-y-2">
           {processingEpisodes.map((episode) => (
             <div

@@ -6,19 +6,11 @@ import { formatUptime, formatDuration, formatTokenCount, formatCost, formatStora
 interface SystemStatusSectionProps {
   status: SystemStatus | undefined;
   statusLoading: boolean;
-  cleanupConfirm: boolean;
-  cleanupIsPending: boolean;
-  cleanupData: { episodesRemoved: number; spaceFreedMb?: number } | undefined;
-  onCleanup: () => void;
 }
 
 function SystemStatusSection({
   status,
   statusLoading,
-  cleanupConfirm,
-  cleanupIsPending,
-  cleanupData,
-  onCleanup,
 }: SystemStatusSectionProps) {
   return (
     <CollapsibleSection title="System Status" defaultOpen storageKey="settings-section-system-status">
@@ -69,28 +61,6 @@ function SystemStatusSection({
           </div>
         </div>
       ) : null}
-      <div className="mt-4 pt-4 border-t border-border">
-        <button
-          onClick={onCleanup}
-          disabled={cleanupIsPending}
-          className={`px-4 py-2 rounded transition-colors disabled:opacity-50 ${
-            cleanupConfirm
-              ? 'bg-destructive text-destructive-foreground hover:bg-destructive/80'
-              : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-          }`}
-        >
-          {cleanupIsPending
-            ? 'Resetting...'
-            : cleanupConfirm
-            ? 'Click again to confirm'
-            : 'Reset All Episodes'}
-        </button>
-        {cleanupData && (
-          <span className="ml-3 text-sm text-muted-foreground">
-            Reset {cleanupData.episodesRemoved} episodes, freed {formatStorage(cleanupData.spaceFreedMb ?? 0)}
-          </span>
-        )}
-      </div>
     </CollapsibleSection>
   );
 }
