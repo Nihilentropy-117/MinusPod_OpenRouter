@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Settings page reorganization**: Grouped related sections under category headings (AI & Processing, Output, Data & Security) and reordered for logical flow
 - Processing Queue section auto-expands when episodes are actively processing
 - AI Models section now defaults to open on first visit
+- Moved "Reset All Episodes" from System Status into Data Management section
 
 ## [1.0.55] - 2026-03-13
 

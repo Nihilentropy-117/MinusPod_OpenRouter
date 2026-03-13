@@ -258,10 +258,6 @@ function Settings() {
       <SystemStatusSection
         status={status}
         statusLoading={statusLoading}
-        cleanupConfirm={cleanupConfirm}
-        cleanupIsPending={cleanupMutation.isPending}
-        cleanupData={cleanupMutation.data}
-        onCleanup={handleCleanup}
       />
 
       <ProcessingQueueSection
@@ -347,7 +343,12 @@ function Settings() {
         saveIsSuccess={retentionMutation.isSuccess}
       />
 
-      <DataManagementSection />
+      <DataManagementSection
+        cleanupConfirm={cleanupConfirm}
+        cleanupIsPending={cleanupMutation.isPending}
+        cleanupData={cleanupMutation.data}
+        onCleanup={handleCleanup}
+      />
 
       <WebhooksSection />
 
