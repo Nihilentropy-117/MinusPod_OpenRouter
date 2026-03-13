@@ -487,13 +487,13 @@ class StatsMixin:
 
         Returns a dict with keys: episode_id, podcast_slug, episode_title,
         processing_duration_seconds, llm_cost, ads_detected,
-        original_duration, new_duration. Returns None if no completed entries.
+        original_duration, new_duration, podcast_title. Returns None if no completed entries.
         """
         conn = self.get_connection()
         row = conn.execute(
             """SELECT h.episode_id, h.podcast_slug, h.episode_title,
                       h.processing_duration_seconds, h.llm_cost, h.ads_detected,
-                      e.original_duration, e.new_duration
+                      e.original_duration, e.new_duration, h.podcast_title
                FROM processing_history h
                LEFT JOIN episodes e ON e.episode_id = h.episode_id
                    AND e.podcast_slug = h.podcast_slug
@@ -512,4 +512,5 @@ class StatsMixin:
             'ads_detected': row[5],
             'original_duration': row[6],
             'new_duration': row[7],
+            'podcast_title': row[8],
         }
