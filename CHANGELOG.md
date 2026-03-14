@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.58] - 2026-03-14
+
+### Changed
+- **Docker base image upgrade**: Upgraded from `nvidia/cuda:12.1.1-runtime-ubuntu22.04` to `nvidia/cuda:12.6.3-runtime-ubuntu24.04` to resolve Docker Scout CVEs from outdated Ubuntu 22.04 system packages. Python 3.11 now installed from deadsnakes PPA (Ubuntu 24.04 defaults to 3.12). Pip bootstrapped via `ensurepip` instead of `python3-pip` package. PyTorch continues to bundle its own CUDA/cuDNN via pip, so the base image CUDA version change has no runtime impact.
+
 ## [1.0.57] - 2026-03-14
 
 ### Fixed
