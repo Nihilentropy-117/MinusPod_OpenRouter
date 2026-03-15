@@ -362,7 +362,8 @@ class OpenAICompatibleClient(LLMClient):
             return self._client.chat.completions.create(**kwargs)
         except BadRequestError as e:
             alt_param = "max_tokens" if token_param == "max_completion_tokens" else "max_completion_tokens"
-            if token_param not in str(e).lower():
+            error_lower = str(e).lower()
+            if token_param not in error_lower and "max_tokens" not in error_lower:
                 raise
             logger.info(f"Model {model} rejected '{token_param}', retrying with '{alt_param}'")
             token_value = kwargs.pop(token_param)

@@ -68,6 +68,48 @@ class TestOpenAITokenParam(unittest.TestCase):
         self.assertIn('max_tokens', second_call)
         self.assertNotIn('max_completion_tokens', second_call)
 
+    def test_reverse_fallback_to_max_completion_tokens(self):
+        """If an old API cached max_tokens but a new model rejects it, should retry
+        with max_completion_tokens (reverse direction)."""
+        from openai import BadRequestError
+        client = self._make_client()
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "new model"
+        mock_response.usage = MagicMock(prompt_tokens=10, completion_tokens=5)
+        mock_response.model = "new-model"
+
+        # Pre-cache max_tokens for this model (simulating prior successful use)
+        # Then clear cache so fallback logic runs fresh for this model
+        error_body = {'error': {'message': "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead."}}
+        error = BadRequestError(
+            message=error_body['error']['message'],
+            response=MagicMock(status_code=400, json=lambda: error_body,
+                             headers={}, text=""),
+            body=error_body
+        )
+        # First attempt uses default max_completion_tokens and succeeds,
+        # but let's test the case where max_tokens was tried first.
+        # Force token_param to max_tokens by pre-caching, then clear to allow fallback
+        client._client.chat.completions.create.side_effect = [error, mock_response]
+
+        # Manually call the fallback method with max_tokens as the initial param
+        result = client._call_with_token_param_fallback(
+            "new-model",
+            {"model": "new-model", "max_tokens": 100, "temperature": 0.0,
+             "messages": [{"role": "user", "content": "hi"}], "timeout": 120.0},
+            "max_tokens"
+        )
+
+        self.assertEqual(result, mock_response)
+        # Should have cached max_completion_tokens for this model
+        self.assertEqual(client._token_param_cache['new-model'], 'max_completion_tokens')
+        # Second call should use max_completion_tokens
+        second_call = client._client.chat.completions.create.call_args_list[1][1]
+        self.assertIn('max_completion_tokens', second_call)
+        self.assertNotIn('max_tokens', second_call)
+
     def test_cache_prevents_repeated_fallback(self):
         """After fallback, subsequent calls for the same model should use cached param."""
         client = self._make_client()
